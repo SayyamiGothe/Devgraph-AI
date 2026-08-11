@@ -1,0 +1,363 @@
+@use '../styles/tokens' as *;
+@use '../styles/mixins' as *;
+
+.auth {
+  display: grid;
+  grid-template-columns: 1.02fr 1fr;
+  min-height: 100vh;
+  min-height: 100svh;
+
+  @include bp-down(lg) {
+    grid-template-columns: 1fr;
+  }
+
+  // ---- Brand side ---------------------------------------------------------
+  &__aside {
+    position: relative;
+    display: flex;
+    overflow: hidden;
+    border-right: 1px solid var(--color-border);
+    background: linear-gradient(160deg, rgba(124, 92, 255, 0.14), rgba(5, 6, 12, 0.9));
+
+    @include bp-down(lg) {
+      display: none;
+    }
+  }
+
+  &__aside-glow {
+    position: absolute;
+    top: -180px;
+    left: -120px;
+    width: 640px;
+    height: 640px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(124, 92, 255, 0.4), transparent 66%);
+    filter: blur(80px);
+    pointer-events: none;
+
+    @include motion-safe {
+      animation: aurora 24s $ease-in-out infinite;
+    }
+  }
+
+  &__aside-inner {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 48px;
+    padding: 44px;
+    width: 100%;
+    max-width: 620px;
+    margin-left: auto;
+  }
+
+  &__brand {
+    display: flex;
+    width: fit-content;
+    animation: fade-up 0.6s $ease-out both;
+
+    &--mobile {
+      display: none;
+      margin-bottom: 30px;
+
+      @include bp-down(lg) {
+        display: flex;
+      }
+    }
+  }
+
+  &__pitch {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+
+    h2 {
+      font-size: clamp(2rem, 3.4vw, 3rem);
+      animation: fade-up 0.75s $ease-out 0.1s both;
+    }
+  }
+
+  &__points {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+
+    li {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      font-size: 1rem;
+      color: var(--color-text-dim);
+      animation: slide-right 0.7s $ease-out both;
+      animation-delay: var(--delay, 0ms);
+    }
+  }
+
+  &__tick {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    flex: none;
+    margin-top: 1px;
+    border-radius: 50%;
+    background: rgba(52, 211, 153, 0.14);
+    border: 1px solid rgba(52, 211, 153, 0.32);
+    color: var(--color-mint);
+    font-size: 0.6875rem;
+  }
+
+  &__quote {
+    margin: 0;
+    padding: 26px;
+    border-radius: var(--radius-lg);
+    @include glass(0.5);
+    animation: fade-up 0.8s $ease-out 0.6s both;
+
+    blockquote {
+      margin: 0 0 18px;
+      font-family: var(--font-display);
+      font-size: 1.0625rem;
+      line-height: 1.55;
+      color: var(--color-text);
+    }
+
+    figcaption {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.8125rem;
+      color: var(--color-text-faint);
+
+      span {
+        display: flex;
+        flex-direction: column;
+      }
+
+      strong {
+        color: var(--color-text);
+        font-size: 0.875rem;
+      }
+    }
+  }
+
+  &__avatar {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--gradient-brand);
+    color: #fff;
+    font-family: var(--font-display);
+    font-weight: 700;
+  }
+
+  // ---- Form side ----------------------------------------------------------
+  &__main {
+    display: grid;
+    place-items: center;
+    padding: 56px 32px;
+
+    @include bp-down(sm) {
+      padding: 40px 20px;
+    }
+  }
+
+  &__card {
+    width: 100%;
+    max-width: 430px;
+    animation: fade-up 0.7s $ease-out both;
+  }
+
+  &__head {
+    margin-bottom: 30px;
+
+    h1 {
+      font-size: clamp(2rem, 4vw, 2.5rem);
+      margin-bottom: 10px;
+    }
+
+    p {
+      font-size: 0.9375rem;
+    }
+  }
+
+  &__form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 0.875rem;
+  }
+
+  // Custom checkbox — the native box can't carry the check animation.
+  &__check {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--color-text-dim);
+    cursor: pointer;
+
+    input {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+  }
+
+  &__box {
+    position: relative;
+    width: 18px;
+    height: 18px;
+    flex: none;
+    border-radius: 5px;
+    border: 1px solid var(--color-border-strong);
+    background: rgba(0, 0, 0, 0.3);
+    transition:
+      background-color 0.24s $ease-out,
+      border-color 0.24s $ease-out;
+
+    // Tick drawn with two borders and a rotation.
+    &::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 5px;
+      width: 5px;
+      height: 9px;
+      border: solid #fff;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg) scale(0);
+      transform-origin: center;
+      transition: transform 0.26s $ease-spring;
+    }
+  }
+
+  &__check input:checked + &__box {
+    background: var(--gradient-brand);
+    border-color: transparent;
+
+    &::after {
+      transform: rotate(45deg) scale(1);
+    }
+  }
+
+  &__check input:focus-visible + &__box {
+    box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.35);
+  }
+
+  &__link {
+    color: var(--color-violet-soft);
+    transition: color 0.2s $ease-out;
+
+    &:hover {
+      color: var(--color-cyan);
+    }
+  }
+
+  &__password {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  &__note {
+    font-size: 0.75rem;
+    line-height: 1.6;
+    color: var(--color-text-faint);
+
+    code {
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--color-text-dim);
+    }
+  }
+
+  &__foot {
+    margin-top: 26px;
+    padding-top: 22px;
+    border-top: 1px solid var(--color-border);
+    font-size: 0.9375rem;
+    color: var(--color-text-dim);
+
+    a {
+      color: var(--color-violet-soft);
+      font-weight: 600;
+      transition: color 0.2s $ease-out;
+
+      &:hover {
+        color: var(--color-cyan);
+      }
+    }
+  }
+}
+
+// ---- Password strength ----------------------------------------------------
+.password-strength {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-left: 2px;
+
+  &__bars {
+    display: flex;
+    gap: 5px;
+    flex: 1;
+  }
+
+  &__bar {
+    flex: 1;
+    height: 4px;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, 0.09);
+    transform-origin: left;
+    transition:
+      background-color 0.3s $ease-out,
+      transform 0.3s $ease-spring;
+
+    &.is-on {
+      background: var(--gradient-brand);
+      transform: scaleY(1.6);
+      transition-delay: var(--delay, 0ms);
+    }
+  }
+
+  &__label {
+    min-width: 74px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    text-align: right;
+    color: var(--color-text-faint);
+
+    &.is-0,
+    &.is-1 {
+      color: var(--color-rose);
+    }
+    &.is-2 {
+      color: var(--color-amber);
+    }
+    &.is-3 {
+      color: var(--color-cyan);
+    }
+    &.is-4 {
+      color: var(--color-mint);
+    }
+  }
+}

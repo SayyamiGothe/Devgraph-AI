@@ -1,0 +1,41 @@
+// ---------------------------------------------------------------------------
+// Design tokens
+//
+// Sass variables are used where the compiler needs them (breakpoints, easings
+// inside mixins); everything a component might want to read at runtime is also
+// exposed as a CSS custom property in `_base.scss`.
+// ---------------------------------------------------------------------------
+
+// Breakpoints
+$bp-xs: 480px;
+$bp-sm: 640px;
+$bp-md: 860px;
+$bp-lg: 1080px;
+$bp-xl: 1320px;
+
+// Layout
+$shell-max: 1240px;
+$sidebar-w: 264px;
+$topbar-h: 68px;
+
+// Easings — the personality of the whole UI lives here
+$ease-out: cubic-bezier(0.22, 1, 0.36, 1); // decelerate, confident
+$ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+$ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); // slight overshoot
+$ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+
+// Palette (dark-first — this UI ships a single, deliberate dark theme)
+$ink-900: #05060c;
+$ink-800: #07080f;
+$ink-700: #0b0d18;
+$ink-600: #10131f;
+$ink-500: #161a29;
+$ink-400: #1e2334;
+
+$violet: #7c5cff;
+$violet-soft: #9d86ff;
+$cyan: #22d3ee;
+$mint: #34d399;
+$amber: #fbbf24;
+$rose: #fb7185;
+$pink: #f472b6;

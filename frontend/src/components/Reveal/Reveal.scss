@@ -1,0 +1,46 @@
+@use '../../styles/tokens' as *;
+@use '../../styles/mixins' as *;
+
+.reveal {
+  opacity: 0;
+  transition:
+    opacity var(--reveal-duration, 700ms) $ease-out var(--reveal-delay, 0ms),
+    transform var(--reveal-duration, 700ms) $ease-out var(--reveal-delay, 0ms),
+    filter var(--reveal-duration, 700ms) $ease-out var(--reveal-delay, 0ms);
+  will-change: opacity, transform;
+
+  &--up {
+    transform: translate3d(0, 34px, 0);
+  }
+  &--left {
+    transform: translate3d(40px, 0, 0);
+  }
+  &--right {
+    transform: translate3d(-40px, 0, 0);
+  }
+  &--scale {
+    transform: scale(0.93);
+  }
+  &--blur {
+    filter: blur(14px);
+    transform: translate3d(0, 18px, 0);
+  }
+  &--fade {
+    transform: none;
+  }
+
+  &.is-visible {
+    opacity: 1;
+    transform: none;
+    filter: none;
+    will-change: auto;
+  }
+
+  // Reduced motion: content appears, nothing moves.
+  @include motion-reduce {
+    opacity: 1;
+    transform: none;
+    filter: none;
+    transition: none;
+  }
+}

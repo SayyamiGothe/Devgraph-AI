@@ -1,4 +1,7 @@
-from app.models.organisation import Organisation
-from app.models.workspace import Workspace
+from app.models.organisations import Organisations
+from app.models.workspaces import Workspace
 from app.models.user import User
 from app.models.project import Project
+
+from app.models.refresh_token import RefreshToken
+from app.database.session import Base

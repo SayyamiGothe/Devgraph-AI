@@ -1,0 +1,363 @@
+@use '../../styles/tokens' as *;
+@use '../../styles/mixins' as *;
+
+.knowledge-graph {
+  &__layout {
+    display: grid;
+    grid-template-columns: 1.55fr 1fr;
+    gap: 28px;
+    align-items: stretch;
+
+    @include bp-down(lg) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  &__stage-wrap {
+    display: flex;
+  }
+
+  &__stage {
+    position: relative;
+    width: 100%;
+    padding: 12px;
+    border-radius: var(--radius-xl);
+    background:
+      radial-gradient(600px 420px at 50% 40%, rgba(124, 92, 255, 0.1), transparent 70%),
+      linear-gradient(160deg, rgba(22, 26, 41, 0.72), rgba(5, 6, 12, 0.8));
+    border: 1px solid var(--color-border-strong);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+
+    // Faint grid so the nodes read as sitting in a space.
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+      background-size: 44px 44px;
+      -webkit-mask-image: radial-gradient(120% 100% at 50% 40%, #000 30%, transparent 78%);
+      mask-image: radial-gradient(120% 100% at 50% 40%, #000 30%, transparent 78%);
+      pointer-events: none;
+    }
+  }
+
+  &__svg {
+    position: relative;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+
+  &__hint {
+    position: absolute;
+    right: 16px;
+    bottom: 14px;
+    font-size: 0.6875rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-text-faint);
+    pointer-events: none;
+
+    @include motion-safe {
+      animation: pulse 3s $ease-in-out infinite;
+    }
+  }
+
+  // ---- Edges --------------------------------------------------------------
+  &__edge {
+    stroke: rgba(255, 255, 255, 0.12);
+    stroke-width: 1;
+    stroke-dasharray: 900;
+    --dash: 900;
+    stroke-dashoffset: 900;
+    transition:
+      stroke 0.34s $ease-out,
+      stroke-width 0.34s $ease-out;
+
+    &.is-lit {
+      stroke: url(#edge-gradient);
+      stroke-width: 1.8;
+    }
+  }
+
+  // Edges draw themselves in when the stage scrolls into view.
+  &__stage.is-visible &__edge {
+    animation: draw 1.4s $ease-out both;
+    animation-delay: var(--delay, 0ms);
+  }
+
+  @include motion-reduce {
+    &__edge {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  &__packet {
+    fill: #fff;
+    opacity: 0.85;
+  }
+
+  // ---- Nodes --------------------------------------------------------------
+  &__node {
+    cursor: pointer;
+    opacity: 0;
+    animation: node-in 0.6s $ease-spring both;
+    animation-delay: var(--delay, 0ms);
+    transition: opacity 0.34s $ease-out;
+
+    &.is-dim {
+      opacity: 0.28;
+    }
+
+    .knowledge-graph__halo {
+      fill: rgba(124, 92, 255, 0.1);
+      transition: fill 0.3s $ease-out;
+    }
+
+    .knowledge-graph__ring {
+      fill: rgba(8, 10, 18, 0.9);
+      stroke: rgba(124, 92, 255, 0.55);
+      stroke-width: 1.4;
+      transition: stroke 0.3s $ease-out;
+    }
+
+    .knowledge-graph__core {
+      fill: var(--color-violet);
+      transition: fill 0.3s $ease-out;
+    }
+
+    .knowledge-graph__label {
+      fill: var(--color-text-dim);
+      font-family: var(--font-body);
+      font-size: 12px;
+      font-weight: 500;
+      pointer-events: none;
+      transition: fill 0.3s $ease-out;
+    }
+
+    &:hover,
+    &:focus-visible {
+      .knowledge-graph__ring {
+        stroke: #fff;
+      }
+      .knowledge-graph__label {
+        fill: #fff;
+      }
+    }
+
+    &.is-active {
+      .knowledge-graph__halo {
+        fill: rgba(124, 92, 255, 0.24);
+      }
+      .knowledge-graph__ring {
+        stroke: #fff;
+        stroke-width: 2;
+      }
+      .knowledge-graph__label {
+        fill: #fff;
+        font-weight: 600;
+      }
+    }
+
+    // Kind-specific colours
+    &.is-core .knowledge-graph__core {
+      fill: url(#edge-gradient);
+    }
+    &.is-core .knowledge-graph__label {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    &.is-document {
+      .knowledge-graph__core {
+        fill: var(--color-cyan);
+      }
+      .knowledge-graph__ring {
+        stroke: rgba(34, 211, 238, 0.55);
+      }
+      .knowledge-graph__halo {
+        fill: rgba(34, 211, 238, 0.1);
+      }
+    }
+
+    &.is-entity {
+      .knowledge-graph__core {
+        fill: var(--color-mint);
+      }
+      .knowledge-graph__ring {
+        stroke: rgba(52, 211, 153, 0.5);
+      }
+      .knowledge-graph__halo {
+        fill: rgba(52, 211, 153, 0.09);
+      }
+    }
+
+    &.is-topic {
+      .knowledge-graph__core {
+        fill: var(--color-amber);
+      }
+      .knowledge-graph__ring {
+        stroke: rgba(251, 191, 36, 0.5);
+      }
+      .knowledge-graph__halo {
+        fill: rgba(251, 191, 36, 0.09);
+      }
+    }
+
+    &.is-person {
+      .knowledge-graph__core {
+        fill: var(--color-rose);
+      }
+      .knowledge-graph__ring {
+        stroke: rgba(251, 113, 133, 0.5);
+      }
+      .knowledge-graph__halo {
+        fill: rgba(251, 113, 133, 0.09);
+      }
+    }
+  }
+
+  // ---- Inspector ----------------------------------------------------------
+  &__side {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  &__inspector {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    flex: 1;
+    padding: 26px;
+    border-radius: var(--radius-lg);
+    @include glass(0.6);
+    box-shadow: var(--shadow-md);
+    animation: fade-up 0.4s $ease-out both;
+
+    h3 {
+      font-size: 1.375rem;
+    }
+
+    p {
+      font-size: 0.9375rem;
+    }
+  }
+
+  &__confidence {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 0.8125rem;
+    color: var(--color-text-dim);
+  }
+
+  &__meter {
+    height: 6px;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+  }
+
+  &__meter-fill {
+    display: block;
+    height: 100%;
+    width: var(--fill, 0%);
+    border-radius: 99px;
+    background: var(--gradient-brand);
+    transform-origin: left;
+    animation: bar-fill 0.9s $ease-out both;
+  }
+
+  &__links {
+    margin-top: auto;
+
+    ul {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin: 10px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    button {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 9px 10px;
+      border-radius: var(--radius-sm);
+      font-size: 0.875rem;
+      color: var(--color-text);
+      text-align: left;
+      transition:
+        background-color 0.22s $ease-out,
+        transform 0.26s $ease-out;
+
+      em {
+        margin-left: auto;
+        font-style: normal;
+        font-size: 0.6875rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--color-text-faint);
+      }
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.06);
+        transform: translateX(3px);
+      }
+    }
+  }
+
+  &__links-title {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-text-faint);
+  }
+
+  &__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+    padding: 16px 20px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border);
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  &__legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8125rem;
+    color: var(--color-text-dim);
+  }
+
+  &__swatch {
+    width: 9px;
+    height: 9px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--color-violet);
+
+    &.is-document {
+      background: var(--color-cyan);
+    }
+    &.is-entity {
+      background: var(--color-mint);
+    }
+    &.is-topic {
+      background: var(--color-amber);
+    }
+    &.is-person {
+      background: var(--color-rose);
+    }
+  }
+}

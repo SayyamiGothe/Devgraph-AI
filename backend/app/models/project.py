@@ -1,12 +1,13 @@
 from sqlalchemy import Column, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
+
 from app.database.session import Base
 
 
 class Project(Base):
     """
-    A project belongs to a workspace.
+    A project belongs to a workspaces.
 
     Later, documents will belong to projects.
     """
@@ -32,15 +33,25 @@ class Project(Base):
         nullable=True,
     )
 
-    # Workspace foreign key
-    workspace_id = Column(
+    # workspaces foreign key
+    workspaces_id = Column(
         Integer,
         ForeignKey("workspaces.id"),
         nullable=False,
     )
 
-    # Relationship with workspace
-    workspace = relationship(
+    # Relationship with workspaces
+    workspaces = relationship(
         "Workspace",
         back_populates="projects",
     )
+
+    @property
+    def organisation_id(self) -> int:
+        """
+        A project has no organisation column of its own.
+
+        It inherits the organisation from the workspace it lives in.
+        """
+        return self.workspaces.organisation_id
+

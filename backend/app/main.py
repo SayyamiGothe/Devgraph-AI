@@ -1,6 +1,9 @@
 from fastapi import Depends, FastAPI
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from app.api.auth.router import router as auth_router
+from app.api.project.router import router as project_router
+from app.api.workspace.router import router as workspace_router
 
 from app.database.session import get_db
 
@@ -12,25 +15,6 @@ app = FastAPI(
 )
 
 
-# Simple health-check endpoint
-@app.get("/health")
-def health_check():
-    return {
-        "status": "ok",
-        "message": "DevGraph AI backend is running",
-    }
-
-
-@app.get("/health/db")
-def database_health(db: Session = Depends(get_db),
-):
-    """
-    Test PostgreSQL connectivity.
-    """
-
-    result = db.execute(text("SELECT 1"))
-
-    return {
-        "status": "ok",
-        "database": result.scalar(),
-    }
+app.include_router(auth_router)
+app.include_router(workspace_router)
+app.include_router(project_router)

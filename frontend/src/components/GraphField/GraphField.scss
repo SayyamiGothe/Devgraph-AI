@@ -1,0 +1,10 @@
+.graph-field {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  // Fades the field out towards the bottom so content below stays readable.
+  -webkit-mask-image: radial-gradient(120% 110% at 50% 24%, #000 42%, transparent 82%);
+  mask-image: radial-gradient(120% 110% at 50% 24%, #000 42%, transparent 82%);
+}

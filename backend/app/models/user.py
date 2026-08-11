@@ -49,7 +49,11 @@ class User(Base):
     )
 
     # Relationship with organization
-    organization = relationship(
-        "Organisation",
+    organisation = relationship(
+        "Organisations",
         back_populates="users",
+    )
+#relationship with refresh token
+    refresh_tokens = relationship(
+        "RefreshToken", back_populates="user", cascade="all, delete-orphan"
     )

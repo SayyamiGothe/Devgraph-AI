@@ -1,0 +1,255 @@
+@use '../../styles/tokens' as *;
+@use '../../styles/mixins' as *;
+
+.navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding: 18px 0;
+  transition:
+    padding 0.4s $ease-out,
+    background-color 0.4s $ease-out,
+    box-shadow 0.4s $ease-out,
+    backdrop-filter 0.4s $ease-out;
+
+  &__inner {
+    width: 100%;
+    max-width: $shell-max;
+    margin: 0 auto;
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+
+    @include bp-down(sm) {
+      padding: 0 20px;
+    }
+  }
+
+  // Scrolled state: shrink and frost.
+  &.is-scrolled {
+    padding: 10px 0;
+    background: rgba(7, 8, 15, 0.72);
+    backdrop-filter: blur(16px) saturate(150%);
+    -webkit-backdrop-filter: blur(16px) saturate(150%);
+    box-shadow:
+      inset 0 -1px 0 var(--color-border),
+      0 18px 40px -28px rgba(0, 0, 0, 0.9);
+  }
+
+  &__brand {
+    display: flex;
+    flex: none;
+    transition: transform 0.3s $ease-spring;
+
+    &:hover {
+      transform: scale(1.03);
+    }
+  }
+
+  // ---- Desktop links ------------------------------------------------------
+  &__links {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+
+    @include bp-down(lg) {
+      display: none;
+    }
+  }
+
+  &__link {
+    position: relative;
+    padding: 9px 15px;
+    border-radius: var(--radius-pill);
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--color-text-dim);
+    transition: color 0.24s $ease-out;
+
+    // Pill background fades in behind the label.
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: rgba(255, 255, 255, 0.07);
+      opacity: 0;
+      transform: scale(0.9);
+      transition:
+        opacity 0.26s $ease-out,
+        transform 0.26s $ease-spring;
+    }
+
+    // Gradient underline sweeps out from the centre.
+    &::after {
+      content: '';
+      position: absolute;
+      left: 15px;
+      right: 15px;
+      bottom: 4px;
+      height: 1.5px;
+      border-radius: 2px;
+      background: var(--gradient-brand);
+      transform: scaleX(0);
+      transition: transform 0.32s $ease-out;
+    }
+
+    span {
+      position: relative;
+    }
+
+    &:hover {
+      color: var(--color-text);
+
+      &::before {
+        opacity: 1;
+        transform: scale(1);
+      }
+      &::after {
+        transform: scaleX(1);
+      }
+    }
+  }
+
+  // ---- Actions ------------------------------------------------------------
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: 8px;
+
+    @include bp-down(lg) {
+      display: none;
+    }
+  }
+
+  &__user {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 5px 14px 5px 5px;
+    border-radius: var(--radius-pill);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--color-border);
+    transition:
+      border-color 0.24s $ease-out,
+      background-color 0.24s $ease-out;
+
+    &:hover {
+      border-color: rgba(124, 92, 255, 0.5);
+      background: rgba(124, 92, 255, 0.1);
+    }
+
+    @include bp-down(xl) {
+      display: none;
+    }
+  }
+
+  &__avatar {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--gradient-brand);
+    color: #fff;
+    font-size: 0.8125rem;
+    font-weight: 700;
+  }
+
+  &__email {
+    font-size: 0.8125rem;
+    color: var(--color-text-dim);
+    max-width: 170px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  // ---- Burger -------------------------------------------------------------
+  &__burger {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    width: 44px;
+    height: 44px;
+    margin-left: auto;
+    padding: 0 11px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border-strong);
+    background: rgba(255, 255, 255, 0.04);
+
+    @include bp-down(lg) {
+      display: flex;
+    }
+
+    span {
+      display: block;
+      height: 2px;
+      border-radius: 2px;
+      background: var(--color-text);
+      transition: transform 0.34s $ease-spring;
+    }
+  }
+
+  // Burger morphs into a cross.
+  &.is-open &__burger span:first-child {
+    transform: translateY(4px) rotate(45deg);
+  }
+  &.is-open &__burger span:last-child {
+    transform: translateY(-4px) rotate(-45deg);
+  }
+
+  // ---- Mobile sheet -------------------------------------------------------
+  &__sheet {
+    display: none;
+    flex-direction: column;
+    gap: 4px;
+    margin: 14px 20px 0;
+    padding: 16px;
+    border-radius: var(--radius-lg);
+    @include glass(0.92, 24px);
+    box-shadow: var(--shadow-lg);
+    animation: scale-in 0.34s $ease-out both;
+    transform-origin: top right;
+
+    @include bp-down(lg) {
+      display: flex;
+    }
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  &__sheet-link {
+    padding: 14px 12px;
+    border-radius: var(--radius-md);
+    text-align: left;
+    font-family: var(--font-display);
+    font-size: 1.0625rem;
+    font-weight: 500;
+    color: var(--color-text);
+    animation: slide-left 0.44s $ease-out both;
+    animation-delay: var(--delay, 0ms);
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+  }
+
+  &__sheet-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 12px;
+    padding-top: 16px;
+    border-top: 1px solid var(--color-border);
+  }
+}
