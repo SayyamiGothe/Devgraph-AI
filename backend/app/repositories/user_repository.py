@@ -8,7 +8,7 @@ class UserRepository:
     def __init__(self,db:Session):
         self.db=db
 
-    def get_by_emil(self,email:str):
+    def get_by_email(self,email:str):
 
         return self.db.query(User).filter(User.email==email).first()
 
@@ -26,4 +26,13 @@ class UserRepository:
         .filter(User.id == user_id)
         .first()
     )
+    def update(self, user: User):
+        self.db.commit()
+        self.db.refresh(user)
+
+        return user
+
+    def delete(self, user: User):
+        self.db.delete(user)
+        self.db.commit()
         

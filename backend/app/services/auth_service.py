@@ -25,7 +25,7 @@ class AuthService:
     def register(self, email: str, password: str, organisation_id: int):
 
         # Check whether email already exists
-        existing_user = self.user_repository.get_by_emil(email)
+        existing_user = self.user_repository.get_by_email(email)
 
         if existing_user:
             raise HTTPException(status_code=400, detail="email alredy exist")
@@ -46,7 +46,7 @@ class AuthService:
 
     def login(self, email: str, password: str):
 
-        user = self.user_repository.get_by_emil(email)
+        user = self.user_repository.get_by_email(email)
 
         if not user:
             raise HTTPException(status_code=404, detail="unathorized")

@@ -40,11 +40,19 @@ class Project(Base):
         nullable=False,
     )
 
+# Project.workspaces  → Workspace
+# Workspace.projects  → list of Projects
     # Relationship with workspaces
     workspaces = relationship(
         "Workspace",
         back_populates="projects",
     )
+
+    documents = relationship(
+    "Document",
+    back_populates="project",
+    cascade="all, delete-orphan",
+)
 
     @property
     def organisation_id(self) -> int:
