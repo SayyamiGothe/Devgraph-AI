@@ -8,3 +8,9 @@ wheels/
 
 # Virtual environments
 .venv
+
+
+backend/.env
+.env
+backend/.env
+.env

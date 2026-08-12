@@ -23,3 +23,9 @@ class Document(Base):
         "Project",
         back_populates="documents",
     )
+
+    chunks = relationship(
+    "DocumentChunk",
+    back_populates="document",
+    cascade="all, delete-orphan",
+)

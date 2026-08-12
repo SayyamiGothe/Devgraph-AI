@@ -13,6 +13,8 @@ class Settings(BaseSettings):
         JWT_ALGORITHM:str
         ACCESS_TOKEN_EXPIRE_MINUTES:int
         REFRESH_TOKEN_EXPIRE_DAYS:int
+        GROQ_API_KEY: str
+        MODEL_NAME: str
 
         model_config = SettingsConfigDict(
         env_file=".env",

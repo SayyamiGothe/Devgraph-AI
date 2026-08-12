@@ -3,9 +3,12 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.models.document import Document
+from app.repositories.document_chunk_repository import DocumentChunkRepository
 from app.repositories.document_repository import DocumentRepository
 from app.repositories.project_repository import ProjectRepository
 from uuid import uuid4
+
+from app.services.document_processing_service import DocumentProcessingService
 
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
@@ -16,6 +19,9 @@ class DocumentService:
     def __init__(self, db: Session):
         self.document_repository = DocumentRepository(db)
         self.project_repository = ProjectRepository(db)
+        self.chunk_repository = DocumentChunkRepository(db)
+
+        self.processing_service = DocumentProcessingService()
 
     def create_document(
         self,
@@ -24,6 +30,8 @@ class DocumentService:
         project_id: int,
         organisation_id: int,
     ):
+
+        # check project
         project = self.project_repository.get_by_id(project_id)
 
         if not project:
@@ -32,12 +40,14 @@ class DocumentService:
                 detail="Project not found",
             )
 
+        # check organisation
         if project.workspaces.organisation_id != organisation_id:
             raise HTTPException(
                 status_code=403,
                 detail="You do not have access to this project",
             )
 
+        # 3. Generate unique filename
         extension = Path(file.filename).suffix
         filename = f"{uuid4()}{extension}"
 
@@ -50,13 +60,26 @@ class DocumentService:
             # Copy the uploaded file into it
             buffer.write(file.file.read())
 
+        # 5. Create document record
         document = Document(
             name=name,
             file_path=str(file_path),
             project_id=project_id,
         )
 
-        return self.document_repository.create(document)
+        document = self.document_repository.create(document)
+
+        #process document
+        chunks,embeddings=self.processing_service.process_document(str(file_path))
+
+         # 7. Store chunks + embeddings
+        self.chunk_repository.create_chunks(
+            document_id=document.id,
+            chunks=chunks,
+            embeddings=embeddings,
+        )
+
+        return document
 
     def get_document(
         self,
