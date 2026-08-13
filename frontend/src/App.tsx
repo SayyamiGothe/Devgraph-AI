@@ -1,10 +1,12 @@
 import { useEffect, type ReactNode } from 'react'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { ConsoleDataProvider } from './context/ConsoleDataContext'
 import { Logo } from './components/ui/Logo'
 import { Landing } from './pages/Landing'
 import { Login } from './pages/Login'
 import { NotFound } from './pages/NotFound'
 import { Register } from './pages/Register'
+import { Ask } from './pages/console/Ask'
 import { Documents } from './pages/console/Documents'
 import { GraphView } from './pages/console/GraphView'
 import { Overview } from './pages/console/Overview'
@@ -24,7 +26,10 @@ function Splash({ label = 'Restoring session' }: { label?: string }) {
   )
 }
 
-/** Console routes: wait for the session to resolve, then require a user. */
+/**
+ * Console routes: wait for the session to resolve, require a user, then load
+ * the organisation's workspace tree once for every page below.
+ */
 function Protected({ children }: { children: ReactNode }) {
   const { status } = useAuth()
   const navigate = useNavigate()
@@ -36,7 +41,7 @@ function Protected({ children }: { children: ReactNode }) {
   if (status === 'loading') return <Splash />
   if (status === 'anonymous') return <Splash label="Redirecting to sign in" />
 
-  return <>{children}</>
+  return <ConsoleDataProvider>{children}</ConsoleDataProvider>
 }
 
 /** Auth routes: a signed-in user has no business here. */
@@ -94,6 +99,13 @@ function Routes() {
         return (
           <Protected>
             <Documents />
+          </Protected>
+        )
+
+      case '/app/ask':
+        return (
+          <Protected>
+            <Ask />
           </Protected>
         )
 

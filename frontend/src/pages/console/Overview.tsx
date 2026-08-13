@@ -1,51 +1,114 @@
-import type { CSSProperties } from 'react'
+import { useMemo, type CSSProperties } from 'react'
 import { ConsoleShell } from '../../components/console/ConsoleShell'
-import { StatCard } from '../../components/console/StatCard'
+import { StatCard, type Stat } from '../../components/console/StatCard'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
+import { Spinner } from '../../components/ui/Spinner'
 import { useAuth } from '../../context/AuthContext'
-import { ACTIVITY, INGEST_QUEUE, STATS, WORKSPACES, type IngestStatus } from '../../lib/mock'
-
-const STATUS_TONE: Record<IngestStatus, 'violet' | 'cyan' | 'mint' | 'amber' | 'rose'> = {
-  parsing: 'cyan',
-  extracting: 'violet',
-  linking: 'amber',
-  done: 'mint',
-  failed: 'rose',
-}
+import { useConsoleData } from '../../context/ConsoleDataContext'
+import { useApi } from '../../hooks/useApi'
+import { api } from '../../lib/api'
+import { Link } from '../../router'
 
 export function Overview() {
   const { user } = useAuth()
+  const { loading, error, workspaces, projects, documentsOf, totals } = useConsoleData()
+  const organisation = useApi('organisation', (signal) => api.organisations.mine(signal))
+
   const name = user?.email?.split('@')[0] ?? 'there'
-  const projects = WORKSPACES.flatMap((workspace) => workspace.projects)
+
+  const stats = useMemo<Stat[]>(
+    () => [
+      {
+        label: 'Documents indexed',
+        value: totals.documents,
+        tone: 'violet',
+        foot: 'across every project',
+      },
+      { label: 'Projects', value: totals.projects, tone: 'cyan', foot: 'in your organisation' },
+      { label: 'Workspaces', value: totals.workspaces, tone: 'mint', foot: 'org-scoped' },
+      {
+        label: 'Empty projects',
+        value: projects.filter((project) => documentsOf(project.id).length === 0).length,
+        tone: 'amber',
+        foot: 'nothing uploaded yet',
+      },
+    ],
+    [totals, projects, documentsOf],
+  )
+
+  // Newest documents first — ids are monotonic, so they stand in for a timestamp
+  // until the API returns `created_at`.
+  const recent = useMemo(() => {
+    const byProject = new Map(projects.map((project) => [project.id, project.name]))
+
+    return projects
+      .flatMap((project) =>
+        documentsOf(project.id).map((document) => ({
+          ...document,
+          projectName: byProject.get(document.project_id) ?? `#${document.project_id}`,
+        })),
+      )
+      .sort((a, b) => b.id - a.id)
+      .slice(0, 6)
+  }, [projects, documentsOf])
+
+  const busiest = useMemo(
+    () =>
+      [...projects]
+        .map((project) => ({ project, documents: documentsOf(project.id).length }))
+        .sort((a, b) => b.documents - a.documents)
+        .slice(0, 4),
+    [projects, documentsOf],
+  )
+
+  const maxDocuments = Math.max(1, ...busiest.map((item) => item.documents))
 
   return (
     <ConsoleShell
       title={`Welcome back, ${name}`}
-      subtitle="Here is what your graph has been doing."
+      subtitle={
+        organisation.data
+          ? `${organisation.data.name} · org #${user?.organisation_id ?? '—'}`
+          : 'Here is what your graph has been doing.'
+      }
     >
+      {error && (
+        <div className="alert animate-in">
+          <span aria-hidden="true">⚠</span>
+          <span>{error}</span>
+        </div>
+      )}
+
+      {loading && (
+        <div className="console__loading animate-in">
+          <Spinner size={20} label="Loading your organisation" />
+          <span>Loading your organisation…</span>
+        </div>
+      )}
+
       <div className="console__grid">
         {/* ---- Stats ---- */}
         <section className="console__stats">
-          {STATS.map((stat, i) => (
+          {stats.map((stat, i) => (
             <StatCard stat={stat} index={i} key={stat.label} />
           ))}
         </section>
 
-        {/* ---- Ingest queue ---- */}
+        {/* ---- Recent documents ---- */}
         <section className="card card--wide animate-in" style={{ '--delay': '160ms' } as CSSProperties}>
           <header className="card__head">
             <div>
-              <h2>Ingest queue</h2>
-              <p>Live pipeline stages for documents landing right now.</p>
+              <h2>Recently indexed</h2>
+              <p>Parsed, chunked and embedded on upload.</p>
             </div>
-            <Badge tone="mint" dot>
-              streaming
-            </Badge>
+            <Button variant="subtle" size="sm" to="/app/documents">
+              Upload
+            </Button>
           </header>
 
           <ul className="queue">
-            {INGEST_QUEUE.map((item, i) => (
+            {recent.map((item, i) => (
               <li
                 className="queue__row animate-in"
                 key={item.id}
@@ -57,51 +120,70 @@ export function Overview() {
                   </span>
                   <span>
                     <strong>{item.name}</strong>
-                    <em>
-                      {item.project} · {item.pages} pages
-                    </em>
+                    <em>{item.projectName}</em>
                   </span>
                 </span>
 
-                <Badge tone={STATUS_TONE[item.status]}>{item.status}</Badge>
+                <Badge tone="mint">indexed</Badge>
 
                 <span className="queue__track">
-                  <span
-                    className={`queue__fill is-${item.status}`}
-                    style={{ '--fill': `${item.progress * 100}%` } as CSSProperties}
-                  />
+                  <span className="queue__fill is-done" style={{ '--fill': '100%' } as CSSProperties} />
                 </span>
 
-                <span className="queue__pct text-mono">{Math.round(item.progress * 100)}%</span>
+                <span className="queue__pct text-mono">100%</span>
               </li>
             ))}
           </ul>
+
+          {!loading && recent.length === 0 && (
+            <div className="empty-state">
+              <span aria-hidden="true">❐</span>
+              <h3>No documents yet</h3>
+              <p>
+                Upload your first file on the <Link to="/app/documents">Documents</Link> page.
+              </p>
+            </div>
+          )}
         </section>
 
-        {/* ---- Activity ---- */}
+        {/* ---- Busiest projects ---- */}
         <section className="card animate-in" style={{ '--delay': '240ms' } as CSSProperties}>
           <header className="card__head">
             <div>
-              <h2>Activity</h2>
-              <p>Last 24 hours</p>
+              <h2>Where the documents are</h2>
+              <p>Top projects by document count</p>
             </div>
           </header>
 
           <ol className="activity-feed">
-            {ACTIVITY.map((event, i) => (
+            {busiest.map((item, i) => (
               <li
                 className="activity-feed__item animate-in"
-                key={event.id}
+                key={item.project.id}
                 style={{ '--delay': `${300 + i * 80}ms` } as CSSProperties}
               >
-                <span className={`activity-feed__dot is-${event.tone}`} aria-hidden="true" />
+                <span className="activity-feed__dot is-violet" aria-hidden="true" />
                 <span className="activity-feed__text">
-                  <strong>{event.actor}</strong> {event.action} <em>{event.target}</em>
+                  <strong>{item.project.name}</strong>{' '}
+                  {item.documents === 0 ? 'has nothing uploaded' : 'holds'}{' '}
+                  {item.documents > 0 && <em>{item.documents} documents</em>}
                 </span>
-                <span className="activity-feed__at text-mono">{event.at}</span>
+                <span className="activity-feed__at text-mono">
+                  {Math.round((item.documents / maxDocuments) * 100)}%
+                </span>
               </li>
             ))}
           </ol>
+
+          {!loading && busiest.length === 0 && (
+            <div className="empty-state">
+              <span aria-hidden="true">⧉</span>
+              <h3>No projects yet</h3>
+              <p>
+                Start on the <Link to="/app/workspaces">Workspaces</Link> page.
+              </p>
+            </div>
+          )}
         </section>
 
         {/* ---- Projects ---- */}
@@ -109,7 +191,9 @@ export function Overview() {
           <header className="card__head">
             <div>
               <h2>Active projects</h2>
-              <p>Across {WORKSPACES.length} workspaces</p>
+              <p>
+                Across {workspaces.length} workspace{workspaces.length === 1 ? '' : 's'}
+              </p>
             </div>
             <Button variant="subtle" size="sm" to="/app/workspaces">
               View all
@@ -117,42 +201,55 @@ export function Overview() {
           </header>
 
           <div className="project-grid">
-            {projects.slice(0, 4).map((project, i) => (
-              <article
-                className="project-card animate-in"
-                key={project.id}
-                style={{ '--delay': `${380 + i * 80}ms` } as CSSProperties}
-              >
-                <div className="flex-between">
-                  <h3>{project.name}</h3>
-                  {project.indexed === 1 ? (
-                    <Badge tone="mint">indexed</Badge>
-                  ) : (
-                    <Badge tone="amber">{Math.round(project.indexed * 100)}%</Badge>
-                  )}
-                </div>
+            {projects.slice(0, 4).map((project, i) => {
+              const documents = documentsOf(project.id).length
 
-                <p>{project.description}</p>
+              return (
+                <article
+                  className="project-card animate-in"
+                  key={project.id}
+                  style={{ '--delay': `${380 + i * 80}ms` } as CSSProperties}
+                >
+                  <div className="flex-between">
+                    <h3>{project.name}</h3>
+                    {documents > 0 ? (
+                      <Badge tone="mint">indexed</Badge>
+                    ) : (
+                      <Badge tone="amber">empty</Badge>
+                    )}
+                  </div>
 
-                <div className="project-card__meta">
-                  <span>
-                    <strong className="text-mono">{project.documents.toLocaleString()}</strong> docs
+                  <p>{project.description ?? 'No description.'}</p>
+
+                  <div className="project-card__meta">
+                    <span>
+                      <strong className="text-mono">{documents.toLocaleString()}</strong> docs
+                    </span>
+                    <span>
+                      workspace <strong className="text-mono">#{project.workspaces_id}</strong>
+                    </span>
+                  </div>
+
+                  <span className="project-card__track">
+                    <span
+                      className="project-card__fill"
+                      style={
+                        { '--fill': `${(documents / maxDocuments) * 100}%` } as CSSProperties
+                      }
+                    />
                   </span>
-                  <span>
-                    <strong className="text-mono">{project.entities.toLocaleString()}</strong> entities
-                  </span>
-                  <span className="project-card__updated">{project.updated}</span>
-                </div>
-
-                <span className="project-card__track">
-                  <span
-                    className="project-card__fill"
-                    style={{ '--fill': `${project.indexed * 100}%` } as CSSProperties}
-                  />
-                </span>
-              </article>
-            ))}
+                </article>
+              )
+            })}
           </div>
+
+          {!loading && projects.length === 0 && (
+            <div className="empty-state">
+              <span aria-hidden="true">⧉</span>
+              <h3>No projects yet</h3>
+              <p>Create a workspace, then a project inside it.</p>
+            </div>
+          )}
         </section>
       </div>
     </ConsoleShell>

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.document import Document
 from app.models.document_chunk import DocumentChunk
 from app.models.project import Project
+from app.models.workspaces import Workspace
 
 # joinedlaod is used for the source citation  now Now each chunk can access: chunk.document
 
@@ -58,9 +59,16 @@ class DocumentChunkRepository:
                 Project,
                 Project.id == Document.project_id,
             )
+            # `Project.organisation_id` is a Python property, not a column —
+            # comparing it in a filter compiles to `WHERE false` and returns
+            # nothing, so the organisation is matched on the workspace instead.
+            .join(
+                Workspace,
+                Workspace.id == Project.workspaces_id,
+            )
             .filter(
                 Project.id == project_id,
-                Project.organisation_id == organisation_id,
+                Workspace.organisation_id == organisation_id,
             )
             .order_by(DocumentChunk.embedding.cosine_distance(query_embedding))
             .limit(top_k)
@@ -110,12 +118,14 @@ class DocumentChunkRepository:
         query: str,
         query_embedding,
         project_id: int,
+        organisation_id: int,
         top_k: int = 5,
     ):
 
         vector_results = self.similarity_search(
             query_embedding=query_embedding,
             project_id=project_id,
+            organisation_id=organisation_id,
             top_k=top_k,
         )
 

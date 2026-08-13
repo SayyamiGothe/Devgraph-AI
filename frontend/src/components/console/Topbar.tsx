@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
+import { useConsoleData } from '../../context/ConsoleDataContext'
 import { Button } from '../ui/Button'
-import { RECENT_QUERIES } from '../../lib/mock'
+import { useNavigate } from '../../router'
+
+/** Starter prompts — the backend has no saved-query endpoint yet. */
+const EXAMPLE_QUERIES = [
+  'Which contracts renew before Q4 and mention data residency?',
+  'Show every spec that depends on the billing service.',
+  'Who approved the SOC 2 exception, and where is it recorded?',
+  'List obligations with a deadline inside the next 30 days.',
+]
 
 interface TopbarProps {
   title: string
@@ -11,6 +20,8 @@ interface TopbarProps {
 
 export function Topbar({ title, subtitle, onMenu }: TopbarProps) {
   const { user, logout } = useAuth()
+  const { projects } = useConsoleData()
+  const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [focused, setFocused] = useState(false)
@@ -47,10 +58,24 @@ export function Topbar({ title, subtitle, onMenu }: TopbarProps) {
   }, [menuOpen])
 
   const suggestions = query
-    ? RECENT_QUERIES.filter((q) => q.toLowerCase().includes(query.toLowerCase()))
-    : RECENT_QUERIES
+    ? EXAMPLE_QUERIES.filter((q) => q.toLowerCase().includes(query.toLowerCase()))
+    : EXAMPLE_QUERIES
 
   const initial = (user?.email ?? '?').charAt(0).toUpperCase()
+
+  /** Hands the question to the Ask page, which runs it through POST /rag/ask. */
+  const submitQuery = (text: string) => {
+    const trimmed = text.trim()
+    if (!trimmed) return
+
+    const project = projects[0]
+    const params = new URLSearchParams({ q: trimmed })
+    if (project) params.set('project', String(project.id))
+
+    setQuery('')
+    searchRef.current?.blur()
+    navigate(`/app/ask?${params.toString()}`)
+  }
 
   return (
     <header className="topbar">
@@ -75,6 +100,9 @@ export function Topbar({ title, subtitle, onMenu }: TopbarProps) {
           placeholder="Ask the graph…"
           aria-label="Ask the graph"
           onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') submitQuery(query)
+          }}
           onFocus={() => setFocused(true)}
           // Delay so a click on a suggestion still registers.
           onBlur={() => window.setTimeout(() => setFocused(false), 140)}
@@ -83,14 +111,14 @@ export function Topbar({ title, subtitle, onMenu }: TopbarProps) {
 
         {focused && (
           <div className="topbar__suggest">
-            <span className="topbar__suggest-label">Recent queries</span>
+            <span className="topbar__suggest-label">Example questions</span>
             {suggestions.length === 0 && <p className="topbar__suggest-empty">No matches.</p>}
             {suggestions.map((suggestion, i) => (
               <button
                 key={suggestion}
                 className="topbar__suggest-item"
                 style={{ animationDelay: `${i * 45}ms` }}
-                onClick={() => setQuery(suggestion)}
+                onClick={() => submitQuery(suggestion)}
               >
                 <span aria-hidden="true">↩</span>
                 {suggestion}

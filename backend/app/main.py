@@ -7,6 +7,7 @@ from app.api.workspace.router import router as workspace_router
 from app.api.user.router import router as user_router
 from app.api.document.router import router as document_router
 from app.api.rag.router import router as rag_router
+from app.api.organisation.router import router as organisation_router
 from app.core.config import settings
 from app.api.conversation.router import (
     router as conversation_router,
@@ -45,6 +46,7 @@ app.add_middleware(
 
 
 app.include_router(auth_router)
+app.include_router(organisation_router)
 app.include_router(workspace_router)
 app.include_router(project_router)
 app.include_router(user_router)

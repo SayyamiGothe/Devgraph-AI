@@ -11,6 +11,7 @@ from app.core.security import (
     create_refresh_token,
     hash_password,
     verify_password,
+    verify_refresh_token,
 )
 from app.models.user import User
 
@@ -71,6 +72,49 @@ class AuthService:
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
+            "token_type": "bearer",
+        }
+
+    def refresh_access_token(self, refresh_token: str):
+        """
+        Exchange a valid refresh token for a fresh access token.
+
+        The token has to satisfy three things: it decodes as a refresh token,
+        we still have a record of it, and that record is neither revoked nor
+        expired. The refresh token itself is left in place so the client can
+        keep using it until it expires.
+        """
+
+        user_id = verify_refresh_token(refresh_token)
+
+        record = self.refresh_token_repository.get_by_token(refresh_token)
+
+        if not record:
+            raise HTTPException(status_code=401, detail="Refresh token not found")
+
+        if record.revoked:
+            raise HTTPException(status_code=401, detail="Refresh token revoked")
+
+        expires_at = record.expires_at
+
+        # SQLite (and older rows) can hand back a naive datetime.
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+        if expires_at < datetime.now(timezone.utc):
+            raise HTTPException(status_code=401, detail="Refresh token expired")
+
+        user = self.user_repository.get_by_id(int(user_id))
+
+        if not user:
+            raise HTTPException(status_code=401, detail="User no longer exists")
+
+        access_token = create_access_token(
+            data={"sub": str(user.id), "email": str(user.email)}
+        )
+
+        return {
+            "access_token": access_token,
             "token_type": "bearer",
         }
 

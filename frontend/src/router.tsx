@@ -60,8 +60,31 @@ function useRouter(): RouterValue {
   return ctx
 }
 
+/** The route without its query string — what `App` switches on. */
 export function useRoute(): string {
+  const { path } = useRouter()
+  return path.split('?')[0]
+}
+
+/** The raw route, query string included. */
+export function useLocation(): string {
   return useRouter().path
+}
+
+/** `#/app/documents?project=7` -> `URLSearchParams { project: '7' }`. */
+export function useSearchParams(): URLSearchParams {
+  const { path } = useRouter()
+  const [, query = ''] = path.split('?')
+  return useMemo(() => new URLSearchParams(query), [query])
+}
+
+/** Reads a numeric query param, or null when absent/not a number. */
+export function useNumericParam(name: string): number | null {
+  const params = useSearchParams()
+  const raw = params.get(name)
+  if (raw === null) return null
+  const value = Number(raw)
+  return Number.isFinite(value) ? value : null
 }
 
 export function useNavigate() {

@@ -34,7 +34,7 @@ def retrieve_chunks(
 
     project_repository = ProjectRepository(db)
 
-    project = project_repository.get_for_organization(
+    project = project_repository.get_for_organisation(
         project_id=project_id,
         organisation_id=current_user.organisation_id,
     )
@@ -51,12 +51,11 @@ def retrieve_chunks(
     chunks = service.retrieve(
         question=question,
         project_id=project_id,
+        organisation_id=current_user.organisation_id,
         top_k=5,
     )
 
-   
     # 3. Return chunks
-   
 
     return [
         {
@@ -87,7 +86,7 @@ def ask_question(
     # 1. Validate project ownership
     project_repository = ProjectRepository(db)
 
-    project = project_repository.get_for_organization(
+    project = project_repository.get_for_organisation(
         project_id=request.project_id,
         organisation_id=current_user.organisation_id,
     )

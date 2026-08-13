@@ -19,7 +19,7 @@ class LLMService:
         if len(answer) > 10000:
             answer = answer[:10000]
 
-            return answer
+        return answer
 
     def generate_answer(
         self,

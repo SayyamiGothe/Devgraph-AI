@@ -1,12 +1,13 @@
 import type { CSSProperties } from 'react'
 import { Link, useRoute } from '../../router'
 import { Logo } from '../ui/Logo'
-import { WORKSPACES } from '../../lib/mock'
+import { useConsoleData } from '../../context/ConsoleDataContext'
 
 const NAV = [
   { to: '/app', label: 'Overview', icon: '◈' },
   { to: '/app/workspaces', label: 'Workspaces', icon: '⧉' },
   { to: '/app/documents', label: 'Documents', icon: '❐' },
+  { to: '/app/ask', label: 'Ask', icon: '✦' },
   { to: '/app/graph', label: 'Graph', icon: '⁂' },
 ]
 
@@ -17,6 +18,7 @@ interface SidebarProps {
 
 export function Sidebar({ open, onClose }: SidebarProps) {
   const path = useRoute()
+  const { workspaces, projects, projectsOf, totals } = useConsoleData()
 
   return (
     <>
@@ -54,38 +56,65 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           <span className="sidebar__label">Workspaces</span>
 
           <ul className="sidebar__tree">
-            {WORKSPACES.map((workspace) => (
-              <li key={workspace.id}>
-                <span className="sidebar__tree-head">
-                  <i aria-hidden="true" />
-                  {workspace.name}
-                  <em>{workspace.projects.length}</em>
-                </span>
+            {workspaces.map((workspace) => {
+              const items = projectsOf(workspace.id)
 
-                <ul>
-                  {workspace.projects.map((project) => (
-                    <li key={project.id}>
-                      <Link to="/app/workspaces" className="sidebar__tree-item" onClick={onClose}>
-                        {project.name}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
+              return (
+                <li key={workspace.id}>
+                  <span className="sidebar__tree-head">
+                    <i aria-hidden="true" />
+                    {workspace.name}
+                    <em>{items.length}</em>
+                  </span>
+
+                  <ul>
+                    {items.map((project) => (
+                      <li key={project.id}>
+                        <Link
+                          to={`/app/documents?project=${project.id}`}
+                          className="sidebar__tree-item"
+                          onClick={onClose}
+                        >
+                          {project.name}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              )
+            })}
+
+            {workspaces.length === 0 && (
+              <li>
+                <Link to="/app/workspaces" className="sidebar__tree-item" onClick={onClose}>
+                  Create your first workspace
+                </Link>
               </li>
-            ))}
+            )}
           </ul>
         </nav>
 
         <div className="sidebar__foot">
           <div className="sidebar__usage">
             <div className="flex-between">
-              <span>Pages this month</span>
-              <strong className="text-mono">64%</strong>
+              <span>Documents indexed</span>
+              <strong className="text-mono">{totals.documents.toLocaleString()}</strong>
             </div>
             <span className="sidebar__usage-track">
-              <span className="sidebar__usage-fill" style={{ '--fill': '64%' } as CSSProperties} />
+              <span
+                className="sidebar__usage-fill"
+                style={
+                  {
+                    // No quota endpoint yet — fill against a nominal 1,000.
+                    '--fill': `${Math.min(100, (totals.documents / 1000) * 100)}%`,
+                  } as CSSProperties
+                }
+              />
             </span>
-            <span className="sidebar__usage-note">160k of 250k on the Team plan</span>
+            <span className="sidebar__usage-note">
+              {projects.length} project{projects.length === 1 ? '' : 's'} in {workspaces.length}{' '}
+              workspace{workspaces.length === 1 ? '' : 's'}
+            </span>
           </div>
         </div>
       </aside>

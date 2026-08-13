@@ -62,7 +62,22 @@ class ProjectRepository:
         )
 
     def get_for_organisation(self, project_id: int, organisation_id: int):
+        """
+        A project scoped to one organisation.
 
-        return self.db.query(Project).filter(
-            Project.id == project_id, Project.organisation_id == organisation_id
-        ).first()
+        `Project.organisation_id` is a Python property, not a column, so the
+        organisation has to be reached through the workspace in SQL.
+        """
+
+        return (
+            self.db.query(Project)
+            .join(
+                Workspace,
+                Project.workspaces_id == Workspace.id,
+            )
+            .filter(
+                Project.id == project_id,
+                Workspace.organisation_id == organisation_id,
+            )
+            .first()
+        )

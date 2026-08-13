@@ -5,9 +5,8 @@ class RAGRequest(BaseModel):
     # " Filed says that This must be a required string containing at least 1 character."
     question: str = Field(..., min_length=1)
     project_id: int
-    conversation_id:int
-    top_k: int = Field(default=5, ge=1, le=20),
-    conversation_id:int
+    conversation_id: int
+    top_k: int = Field(default=5, ge=1, le=20)
 
 
 class RAGSource(BaseModel):

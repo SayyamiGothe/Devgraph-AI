@@ -112,7 +112,7 @@ def upload_document(
 
     project_repository = ProjectRepository(db)
 
-    project = project_repository.get_for_organization(
+    project = project_repository.get_for_organisation(
         project_id=project_id,
         organisation_id=current_user.organisation_id,
     )
@@ -130,8 +130,10 @@ def upload_document(
     service = DocumentService(db)
 
     document = service.create_document(
+        name=file.filename,
         project_id=project_id,
         file=file,
+        organisation_id=current_user.organisation_id,
     )
 
     # ------------------------------------------
