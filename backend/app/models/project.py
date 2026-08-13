@@ -53,6 +53,12 @@ class Project(Base):
     back_populates="project",
     cascade="all, delete-orphan",
 )
+
+    conversations = relationship(
+    "Conversation",
+    back_populates="project",
+    cascade="all, delete-orphan",
+)
     
     @property
     def organisation_id(self) -> int:

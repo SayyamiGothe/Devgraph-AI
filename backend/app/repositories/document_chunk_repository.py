@@ -1,9 +1,12 @@
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
+from app.models.document import Document
 from app.models.document_chunk import DocumentChunk
+from app.models.project import Project
 
+# joinedlaod is used for the source citation  now Now each chunk can access: chunk.document
 
-#joinedlaod is used for the source citation  now Now each chunk can access: chunk.document
 
 class DocumentChunkRepository:
 
@@ -33,16 +36,105 @@ class DocumentChunkRepository:
 
         return document_chunk
 
-    def similarity_search(self, query_embedding, project_id: int, top_k: int = 5):
+    # Lower distance = more similar
+    # Higher distance = less similar
+
+    # only accept distance <= 0.40
+
+    def similarity_search(
+        self,
+        query_embedding,
+        project_id: int,
+        organisation_id: int,
+        top_k: int = 5,
+    ):
         return (
-            self.db.query(DocumentChunk).options(
-                joinedload(DocumentChunk.document)
+            self.db.query(DocumentChunk)
+            .join(
+                Document,
+                Document.id == DocumentChunk.document_id,
             )
-            .join(DocumentChunk.document)
-            .filter(DocumentChunk.document.has(project_id=project_id))
+            .join(
+                Project,
+                Project.id == Document.project_id,
+            )
+            .filter(
+                Project.id == project_id,
+                Project.organisation_id == organisation_id,
+            )
             .order_by(DocumentChunk.embedding.cosine_distance(query_embedding))
             .limit(top_k)
             .all()
         )
 
-    
+    def keyword_search(
+        self,
+        query: str,
+        project_id: int,
+        top_k: int = 5,
+    ):
+        # PostgreSQL turns the natural-language query into a text-search query.
+        search_query = func.plainto_tsquery(
+            "english",
+            query,
+        )
+        # What ts_rank() does
+        # calculates how relevant the chunk is to the query.
+        rank = func.ts_rank(
+            DocumentChunk.search_vector,
+            search_query,
+        )
+
+        results = (
+            self.db.query(
+                DocumentChunk,
+                rank.label("rank"),
+            )
+            .join(DocumentChunk.document)
+            .filter(Document.project_id == project_id)
+            .filter(
+                #    What @@ means
+                # Does this document's search vector
+                # match the search query?
+                DocumentChunk.search_vector.op("@@")(search_query)
+            )
+            .order_by(rank.desc())
+            .limit(top_k)
+            .all()
+        )
+
+        return results
+
+    def hybrid_search(
+        self,
+        query: str,
+        query_embedding,
+        project_id: int,
+        top_k: int = 5,
+    ):
+
+        vector_results = self.similarity_search(
+            query_embedding=query_embedding,
+            project_id=project_id,
+            top_k=top_k,
+        )
+
+        keyword_results = self.keyword_search(
+            query=query,
+            project_id=project_id,
+            top_k=top_k,
+        )
+
+        combined = []
+
+        seen_ids = set()
+
+        for chunk in vector_results + keyword_results:
+
+            if chunk.id not in seen_ids:
+
+                combined.append(chunk)
+
+                seen_ids.add(chunk.id)
+
+        return combined[:top_k]

@@ -1,6 +1,7 @@
 from sqlalchemy import Column, ForeignKey, Integer, Text
 from sqlalchemy.orm import relationship
 from pgvector.sqlalchemy import Vector
+from sqlalchemy.dialects.postgresql import TSVECTOR
 
 from app.database.session import Base
 
@@ -39,4 +40,9 @@ class DocumentChunk(Base):
     document = relationship(
         "Document",
         back_populates="chunks",
+    )
+
+    search_vector = Column(
+        TSVECTOR,
+        nullable=True,
     )

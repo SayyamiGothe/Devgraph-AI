@@ -1,0 +1,22 @@
+[
+    {
+        "question": "What programming languages does Sayyami know?",
+        "project_id": 3
+    },
+    {
+        "question": "What experience does Sayyami have with Python?",
+        "project_id": 3
+    },
+    {
+        "question": "What experience does Sayyami have with FastAPI?",
+        "project_id": 3
+    },
+    {
+        "question": "What GenAI technologies has Sayyami worked with?",
+        "project_id": 3
+    },
+    {
+        "question": "What database technologies has Sayyami used?",
+        "project_id": 3
+    }
+]

@@ -17,27 +17,21 @@ class ProjectRepository:
         return project
 
     def get_by_id(self, project_id: int):
-        return (
-            self.db.query(Project)
-            .filter(Project.id == project_id)
-            .first()
-        )
+        return self.db.query(Project).filter(Project.id == project_id).first()
 
     def get_by_workspace(self, workspaces_id: int):
         return (
-            self.db.query(Project)
-            .filter(Project.workspaces_id == workspaces_id)
-            .all()
+            self.db.query(Project).filter(Project.workspaces_id == workspaces_id).all()
         )
 
     def get_by_organisation(self, organisation_id: int):
 
         return (
-        self.db.query(Project)
-        .join(Workspace, Project.workspaces_id == Workspace.id)
-        .filter(Workspace.organisation_id == organisation_id)
-        .all()
-    )
+            self.db.query(Project)
+            .join(Workspace, Project.workspaces_id == Workspace.id)
+            .filter(Workspace.organisation_id == organisation_id)
+            .all()
+        )
 
     def update(self, project: Project):
         self.db.commit()
@@ -48,3 +42,27 @@ class ProjectRepository:
     def delete(self, project: Project):
         self.db.delete(project)
         self.db.commit()
+
+    def get_project_for_user(
+        self,
+        project_id: int,
+        user_id: int,
+    ):
+        return (
+            self.db.query(Project)
+            .join(
+                Workspace,
+                Project.workspaces_id == Workspace.id,
+            )
+            .filter(
+                Project.id == project_id,
+                Workspace.organisation_id == user_id,
+            )
+            .first()
+        )
+
+    def get_for_organisation(self, project_id: int, organisation_id: int):
+
+        return self.db.query(Project).filter(
+            Project.id == project_id, Project.organisation_id == organisation_id
+        ).first()

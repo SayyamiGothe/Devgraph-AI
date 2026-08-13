@@ -21,6 +21,7 @@ dependencies = [
     "pypdf>=6.15.0",
     "python-jose[cryptography]>=3.5.0",
     "python-multipart>=0.0.32",
+    "requests>=2.34.2",
     "sentence-transformers>=5.7.0",
     "sqlalchemy>=2.0.51",
     "uvicorn>=0.52.1",

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.security import get_current_user
@@ -11,6 +11,7 @@ from app.schemas.document import (
     DocumentResponse,
     DocumentUpdate,
 )
+from app.repositories.project_repository import ProjectRepository
 
 router = APIRouter(
     prefix="/documents",
@@ -96,3 +97,45 @@ def update_document(
         file_path=request.file_path,
         organisation_id=current_user.organisation_id,
     )
+
+@router.post("/upload")
+def upload_document(
+    project_id: int,
+    file: UploadFile,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+
+    # ------------------------------------------
+    # 1. Verify project belongs to organization
+    # ------------------------------------------
+
+    project_repository = ProjectRepository(db)
+
+    project = project_repository.get_for_organization(
+        project_id=project_id,
+        organisation_id=current_user.organisation_id,
+    )
+
+    if not project:
+        raise HTTPException(
+            status_code=404,
+            detail="Project not found",
+        )
+
+    # ------------------------------------------
+    # 2. Save/process document
+    # ------------------------------------------
+
+    service = DocumentService(db)
+
+    document = service.create_document(
+        project_id=project_id,
+        file=file,
+    )
+
+    # ------------------------------------------
+    # 3. Return
+    # ------------------------------------------
+
+    return document

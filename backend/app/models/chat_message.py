@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, Text, ForeignKey
+from sqlalchemy.orm import relationship
 
 from app.database.session import Base
 
@@ -13,9 +14,9 @@ class ChatMessage(Base):
         index=True,
     )
 
-    project_id = Column(
+    conversation_id = Column(
         Integer,
-        ForeignKey("projects.id"),
+        ForeignKey("conversations.id"),
         nullable=False,
     )
 
@@ -27,4 +28,9 @@ class ChatMessage(Base):
     content = Column(
         Text,
         nullable=False,
+    )
+
+    conversation = relationship(
+        "Conversation",
+        back_populates="messages",
     )

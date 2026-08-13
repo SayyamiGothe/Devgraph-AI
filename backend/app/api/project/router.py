@@ -105,3 +105,4 @@ def delete_project(
         project_id=project_id,
         organisation_id=current_user.organisation_id,
     )
+
