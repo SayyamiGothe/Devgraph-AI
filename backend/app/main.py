@@ -1,7 +1,11 @@
+from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI
+import logging
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.api.auth.router import router as auth_router
+from app.api.graph.neo4j_client import close_driver, ensure_schema
 from app.api.project.router import router as project_router
 from app.api.workspace.router import router as workspace_router
 from app.api.user.router import router as user_router
@@ -19,21 +23,30 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.database.session import get_db
 
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger = logging.getLogger(__name__)
+    if ensure_schema():
+        logger.info("Neo4j schema ready")
+    else:
+        logger.warning(
+            "Neo4j unavailable - graph features will be degraded"
+        )
+
+    yield
+
+    close_driver()
+
+
 # Create the FastAPI application
 app = FastAPI(
     title="DevGraph AI",
     description="GenAI Document Intelligence Platform",
     version="1.0.0",
+    lifespan=lifespan
 )
-
-@app.get("/")
-def root():
-    return {"message": "DevGraph AI backend is running"}
-
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
 
 app.add_middleware(
     CORSMiddleware,

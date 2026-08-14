@@ -16,7 +16,13 @@ class Settings(BaseSettings):
         GROQ_API_KEY: str
         MODEL_NAME: str
         FRONTEND_URL: str
+        NEO4J_URI: str 
+        NEO4J_USER: str 
+        NEO4J_PASSWORD: str 
+        NEO4J_DATABASE: str
 
+        MAX_ZIP_SIZE_MB: int
+        MAX_REPO_FILES: int 
         MODE: str = "development"
 
         model_config = SettingsConfigDict(

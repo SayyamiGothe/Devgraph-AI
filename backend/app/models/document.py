@@ -29,3 +29,19 @@ class Document(Base):
     back_populates="document",
     cascade="all, delete-orphan",
 )
+    source_type = Column(
+        String(20),
+        nullable=False,
+        server_default="pdf",
+    )
+
+    code_repository_id = Column(
+        Integer,
+        ForeignKey("code_repositories.id"),
+        nullable=True,
+    )
+
+    code_repository = relationship(
+        "CodeRepository",
+        back_populates="documents",
+    )

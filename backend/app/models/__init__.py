@@ -7,5 +7,6 @@ from app.models.document_chunk import DocumentChunk
 from app.models.chat_message import ChatMessage
 from app.models.refresh_token import RefreshToken
 from app.models.conversation import Conversation
+from app.models.code_repository import CodeRepository
 
 from app.database.session import Base
