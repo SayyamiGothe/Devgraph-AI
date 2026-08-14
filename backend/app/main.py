@@ -26,6 +26,15 @@ app = FastAPI(
     version="1.0.0",
 )
 
+@app.get("/")
+def root():
+    return {"message": "DevGraph AI backend is running"}
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.FRONTEND_URL
