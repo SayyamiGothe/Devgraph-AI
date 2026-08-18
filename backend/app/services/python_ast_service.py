@@ -80,6 +80,54 @@ def module_fqn_from_path(path: Path, repo_root: Path) -> tuple[str, bool]:
     return ".".join(parts), is_package
 
 
+CHUNK_MAX_CHARS = 1500
+
+
+def build_chunk_text(node, source_lines) -> str:
+    """
+    A header plus the exact source slice.
+
+    The header is embedded along with the code, which measurably helps
+    retrieval: a question like "what is in document_service.py" has
+    nothing to match against otherwise.
+    """
+    body = "\n".join(source_lines[node.start_line - 1: node.end_line])
+
+    header = (
+        f"# file: {node.file_path}:{node.start_line}-{node.end_line}\n"
+        f"# fqn: {node.fqn}\n"
+    )
+
+    if node.signature:
+        header += f"# signature: {node.signature}\n"
+
+    return header + "\n" + body
+
+
+def build_module_chunk(module) -> str | None:
+    """Module-level imports and constants: everything before the first def."""
+    lines = module.source.splitlines()
+
+    definitions = [
+        n.start_line for n in module.nodes if n.kind in ("class", "function")
+    ]
+
+    end = (min(definitions) - 1) if definitions else len(lines)
+
+    body = "\n".join(lines[:end]).strip()
+
+    if not body:
+        return None
+
+    header = (
+        f"# file: {module.file_path}:1-{end}\n"
+        f"# fqn: {module.module_fqn}\n"
+        f"# module-level imports and constants\n"
+    )
+
+    return header + "\n" + body
+
+
 def _dotted(node) -> str | None:
     """Flatten a Name/Attribute chain into 'a.b.c'."""
     if isinstance(node, ast.Name):

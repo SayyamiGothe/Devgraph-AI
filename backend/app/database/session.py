@@ -3,7 +3,12 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from app.core.config import settings
 
 # The engine manages communication between our application and postgress
-engine = create_engine(settings.DATABASE_URL, echo=True)
+engine = create_engine(
+    settings.DATABASE_URL,
+    # echo=True crashes the logger on Windows consoles when SQL
+    # contains non-cp1252 characters (arrows in code comments).
+    echo=(settings.MODE == "debug"),
+)
 
 # Each request will get a database session.
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)

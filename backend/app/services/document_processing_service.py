@@ -98,3 +98,15 @@ class DocumentProcessingService:
     def generate_query_embedding(self, question: str):
 
      return self.embedding_model.embed_query(question)
+
+    # ---- shared with the code-ingestion path ----
+
+    def get_splitter(self):
+        return RecursiveCharacterTextSplitter(
+            chunk_size=1000,
+            chunk_overlap=200,
+        )
+
+    def embed_texts(self, texts):
+        """Batch embedding for already-prepared strings."""
+        return self.embedding_model.embed_documents(texts)

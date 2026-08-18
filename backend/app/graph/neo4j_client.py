@@ -58,7 +58,7 @@ def verify_connection() -> bool:
     try:
         get_driver().verify_connectivity()
         return True
-    except (ServiceUnavailable, Neo4jError) as exc:
+    except (ServiceUnavailable, Neo4jError, OSError) as exc:
         logger.warning("Neo4j is not reachable: %s", exc)
         return False
 
