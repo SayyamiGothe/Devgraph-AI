@@ -1,0 +1,21 @@
+services:
+  neo4j:
+    image: neo4j:5
+    container_name: devgraph-neo4j
+    ports:
+      - "7474:7474"   # browser UI
+      - "7687:7687"   # bolt, what the python driver speaks
+    environment:
+      # Must match NEO4J_USER / NEO4J_PASSWORD in .env
+      NEO4J_AUTH: neo4j/qm7XiSMtniSnYS38ezZwyOu4MW4OIHCzKpC-5SmT6Gs
+      NEO4J_server_memory_heap_max__size: 1G
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "devgraph123", "RETURN 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  neo4j_data:

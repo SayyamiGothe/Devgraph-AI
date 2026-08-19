@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
@@ -15,6 +15,7 @@ from app.core.security import get_current_user
 from app.models.user import User
 from fastapi import Depends
 
+from app.services.user_service import UserService
 from app.api.dependencies import require_admin, require_roles
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -53,12 +54,24 @@ def get_me(current_user: User = Depends(get_current_user)):
 
 
 @router.delete("/users/{user_id}")
-def delete_user(user_id: int, current_user: User = Depends(require_admin)):
-    return {
-        "message": "User can be deleted",
-        "admin_id": current_user.id,
-        "target_user_id": user_id,
-    }
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    # This used to return a success message without deleting anything.
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=400,
+            detail="You cannot delete your own account",
+        )
+
+    service = UserService(db)
+
+    return service.delete_user(
+        user_id=user_id,
+        organisation_id=current_user.organisation_id,
+    )
 
 
 @router.post("/logout")

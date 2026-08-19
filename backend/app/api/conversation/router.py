@@ -5,16 +5,19 @@ from app.core.security import get_current_user
 from app.database.session import get_db
 from app.models.user import User
 from app.repositories.conversation_repsitory import ConversationRepository
+from app.repositories.project_repository import ProjectRepository
 from app.schemas.conversation import ConversationCreate, ConversationResponse
 from app.services.conversation_service import ConversationService
-
-
-
 
 router = APIRouter(
     prefix="/conversations",
     tags=["Conversations"],
 )
+
+
+# Every route here is org-scoped. Previously they were authenticated
+# but NOT authorized, so any logged-in user could create a conversation
+# on any project and read any conversation by guessing its id.
 
 
 @router.post(
@@ -26,6 +29,19 @@ def create_conversation(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+
+    project_repository = ProjectRepository(db)
+
+    project = project_repository.get_for_organisation(
+        project_id=request.project_id,
+        organisation_id=current_user.organisation_id,
+    )
+
+    if not project:
+        raise HTTPException(
+            status_code=404,
+            detail="Project not found",
+        )
 
     service = ConversationService(db)
 
@@ -47,10 +63,13 @@ def get_conversation(
     current_user: User = Depends(get_current_user),
 ):
 
-    service = ConversationService(db)
+    repository = ConversationRepository(db)
 
-    conversation = service.get_conversation(
-        conversation_id=conversation_id
+    # get_for_user joins through project -> workspace -> organisation.
+    # It already existed but was only used by /rag/ask.
+    conversation = repository.get_for_user(
+        conversation_id=conversation_id,
+        organisation_id=current_user.organisation_id,
     )
 
     if not conversation:
@@ -60,6 +79,7 @@ def get_conversation(
         )
 
     return conversation
+
 
 @router.get(
     "/project/{project_id}",
@@ -71,10 +91,19 @@ def get_project_conversations(
     current_user: User = Depends(get_current_user),
 ):
 
-    repository = ConversationRepository(db)
+    project_repository = ProjectRepository(db)
 
-    conversations = repository.get_by_project(
-        project_id=project_id
+    project = project_repository.get_for_organisation(
+        project_id=project_id,
+        organisation_id=current_user.organisation_id,
     )
 
-    return conversations
+    if not project:
+        raise HTTPException(
+            status_code=404,
+            detail="Project not found",
+        )
+
+    repository = ConversationRepository(db)
+
+    return repository.get_by_project(project_id=project_id)

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
@@ -9,6 +9,9 @@ from app.schemas.chat_message import ChatMessageResponse
 
 from app.repositories.chat_message_repository import (
     ChatMessageRepository,
+)
+from app.repositories.conversation_repsitory import (
+    ConversationRepository,
 )
 
 
@@ -28,6 +31,22 @@ def get_conversation_messages(
     current_user: User = Depends(get_current_user),
 ):
 
+    # Authorize the conversation before reading its messages. Without
+    # this, any logged-in user could read another organisation's chat
+    # history by guessing a conversation id.
+    conversation_repository = ConversationRepository(db)
+
+    conversation = conversation_repository.get_for_user(
+        conversation_id=conversation_id,
+        organisation_id=current_user.organisation_id,
+    )
+
+    if not conversation:
+        raise HTTPException(
+            status_code=404,
+            detail="Conversation not found",
+        )
+
     repository = ChatMessageRepository(db)
 
     messages = repository.get_messages(
@@ -36,7 +55,7 @@ def get_conversation_messages(
     )
 
     # Repository returns newest first.
-    # Frontend normally wants oldest → newest.
+    # Frontend normally wants oldest -> newest.
     messages.reverse()
 
     return messages

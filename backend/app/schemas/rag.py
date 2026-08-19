@@ -16,6 +16,13 @@ class RAGSource(BaseModel):
     document_name: str
     chunk_index: int
 
+    # Populated only for code chunks. Defaults of None keep every
+    # existing PDF response shape valid.
+    code_fqn: str | None = None
+    file_path: str | None = None
+    start_line: int | None = None
+    end_line: int | None = None
+
 
 class RAGResponse(BaseModel):
 

@@ -25,5 +25,12 @@ dependencies = [
     "requests>=2.34.2",
     "sentence-transformers>=5.7.0",
     "sqlalchemy>=2.0.51",
+    "tree-sitter>=0.26.0",
+    "tree-sitter-language-pack>=1.14.3",
     "uvicorn>=0.52.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
 ]

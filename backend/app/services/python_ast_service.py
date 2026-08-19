@@ -25,6 +25,9 @@ class CodeNode:
     decorators: list = field(default_factory=list)
     is_async: bool = False
 
+    #: tree-sitter grammar name, or 'python' for the ast path.
+    language: str = 'python'
+
     # RAW base-class names. They cannot be resolved during pass 1
     # because resolution depends on the module's imports.
     bases: list = field(default_factory=list)
@@ -55,6 +58,8 @@ class ParsedModule:
     #   attr_types[class_fqn][attr_name]    = raw class name
     local_types: dict = field(default_factory=dict)
     attr_types: dict = field(default_factory=dict)
+
+    language: str = 'python'
 
 
 # ----------------------------------------------------------------------

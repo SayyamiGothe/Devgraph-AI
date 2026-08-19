@@ -70,6 +70,17 @@ app.add_middleware(
 )
 
 
+@app.get("/")
+def root():
+    return {"message": "DevGraph AI backend is running"}
+
+
+@app.get("/health")
+def health():
+    """Deployment health check. Render and similar platforms poll this."""
+    return {"status": "ok"}
+
+
 app.include_router(auth_router)
 app.include_router(organisation_router)
 app.include_router(workspace_router)

@@ -110,3 +110,17 @@ class DocumentProcessingService:
     def embed_texts(self, texts):
         """Batch embedding for already-prepared strings."""
         return self.embedding_model.embed_documents(texts)
+
+
+# The embedding model is ~90MB and reloads on every instantiation.
+# RAGService built one per request, i.e. per question asked.
+_shared_processing_service = None
+
+
+def get_processing_service() -> DocumentProcessingService:
+    global _shared_processing_service
+
+    if _shared_processing_service is None:
+        _shared_processing_service = DocumentProcessingService()
+
+    return _shared_processing_service

@@ -87,6 +87,9 @@ class DocumentChunkRepository:
     ):
         return (
             self.db.query(DocumentChunk)
+            # Without this, every chunk.document access in build_context
+            # and build_graph_context fires its own SELECT (N+1).
+            .options(joinedload(DocumentChunk.document))
             .join(
                 Document,
                 Document.id == DocumentChunk.document_id,

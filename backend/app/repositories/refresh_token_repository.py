@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -30,7 +30,7 @@ class RefreshTokenRepository:
 
     def delete_expired(self):
         self.db.query(RefreshToken).filter(
-            RefreshToken.expires_at < datetime.nextutcnow()
+            RefreshToken.expires_at < datetime.now(timezone.utc)
         ).delete()
 
         self.db.commit()

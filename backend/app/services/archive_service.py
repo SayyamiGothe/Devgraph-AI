@@ -2,17 +2,22 @@ import logging
 import shutil
 import tempfile
 import zipfile
+from collections import Counter
 from pathlib import Path
 
 from fastapi import HTTPException, UploadFile
 
 from app.core.config import settings
+from app.services.language_config import (
+    SUPPORTED_EXTENSIONS,
+    is_supported,
+)
 
 logger = logging.getLogger(__name__)
 
 
 # Directory names that never contain first-party source worth graphing.
-# A single .venv holds 30k+ files and would drown the real code.
+# A single .venv holds 30k+ files, and node_modules is worse.
 SKIP_DIR_NAMES = {
     ".git",
     ".hg",
@@ -24,14 +29,21 @@ SKIP_DIR_NAMES = {
     "__pycache__",
     "site-packages",
     "node_modules",
+    "bower_components",
+    "vendor",
     "dist",
     "build",
+    "out",
+    ".next",
+    ".nuxt",
     ".eggs",
     ".tox",
     ".nox",
     ".mypy_cache",
     ".pytest_cache",
     ".ruff_cache",
+    ".gradle",
+    "target",
     ".idea",
     ".vscode",
 }
@@ -40,16 +52,33 @@ SKIP_DIR_NAMES = {
 # Files that mark the ROOT of a project rather than a package.
 # Kept during extraction purely as a signal for _find_repo_root.
 ROOT_MARKERS = {
+    # python
     "pyproject.toml",
     "setup.py",
     "setup.cfg",
     "requirements.txt",
     "tox.ini",
+    # javascript / typescript
+    "package.json",
+    "tsconfig.json",
+    "pnpm-workspace.yaml",
+    # other ecosystems
+    "go.mod",
+    "Cargo.toml",
+    "pom.xml",
+    "build.gradle",
+    "build.gradle.kts",
+    "composer.json",
+    "Gemfile",
+    "CMakeLists.txt",
+    # generic
     "Makefile",
+    "Dockerfile",
     ".gitignore",
     "README.md",
     "README.rst",
     "README",
+    "LICENSE",
 }
 
 
@@ -103,48 +132,67 @@ class ArchiveService:
             if part in SKIP_DIR_NAMES or part.endswith(".egg-info"):
                 return False
 
-        return name.endswith(".py") or Path(name).name in ROOT_MARKERS
+        suffix = Path(name).suffix.lower()
+
+        return is_supported(suffix) or Path(name).name in ROOT_MARKERS
 
     def _find_repo_root(self, extract_root: Path) -> Path:
         """
-        GitHub zips wrap everything in a single 'repo-main/' directory.
-        Descend into it, or every module fqn gains a junk prefix and
-        no absolute import will ever resolve.
+        Strip wrapper directories so module fqns start at the real root.
 
-        But do NOT descend into a directory that is simply the repo's
-        only source package (e.g. a repo containing just 'app/'), or
-        every fqn LOSES its root segment and imports break the same way.
+        Three cases have to be told apart, and getting it wrong silently
+        wrecks call resolution rather than raising:
 
-        Two signals distinguish them:
-          - a package has __init__.py, a wrapper does not
-          - a project root has marker files, a package does not
+          1. `repo-main/` from a GitHub zip, holding project markers.
+             Descend, or every fqn gains a junk `repo-main.` prefix and
+             no absolute import resolves.
+
+          2. `outer/inner/...` where `outer` holds nothing but `inner`.
+             A passthrough directory carries no information, so keep
+             descending. Real archives nest two or three deep like this.
+
+          3. `app/` containing actual source, and nothing else at the
+             top. This is NOT a wrapper: descending would DROP the
+             `app.` prefix that every `from app.x import y` depends on.
+
+        A package (`__init__.py`) always stops the descent.
         """
-        entries = list(extract_root.iterdir())
+        current = extract_root
 
-        if len(entries) != 1 or not entries[0].is_dir():
-            return extract_root
+        # Bounded: a pathological archive should not spin here.
+        for _ in range(6):
+            entries = list(current.iterdir())
 
-        candidate = entries[0]
+            if len(entries) != 1 or not entries[0].is_dir():
+                break
 
-        if (candidate / "__init__.py").exists():
-            return extract_root
+            candidate = entries[0]
 
-        has_marker = any(
-            (candidate / marker).exists() for marker in ROOT_MARKERS
-        )
+            if (candidate / "__init__.py").exists():
+                break
 
-        if has_marker:
-            return candidate
+            children = list(candidate.iterdir())
 
-        logger.warning(
-            "Single top-level directory %r has no package or project "
-            "markers; treating the archive root as the repo root. "
-            "Module paths may be prefixed with %r.",
-            candidate.name,
-            candidate.name,
-        )
+            has_marker = any(
+                (candidate / marker).exists() for marker in ROOT_MARKERS
+            )
+            is_passthrough = len(children) == 1 and children[0].is_dir()
 
-        return extract_root
+            if not (has_marker or is_passthrough):
+                # Case 3: a meaningful namespace directory. Keep it.
+                logger.info(
+                    "Treating %r as a source directory, not a wrapper; "
+                    "fqns will start with it.",
+                    candidate.name,
+                )
+                break
+
+            current = candidate
+
+        if current != extract_root:
+            logger.info("Repo root resolved to %r", current.name)
+
+        return current
 
     # ------------------------------------------------------------------
     # streaming upload to disk
@@ -192,11 +240,11 @@ class ArchiveService:
 
     def extract(self, file: UploadFile):
         """
-        Returns (temp_dir, repo_root, py_files).
+        Returns (temp_dir, repo_root, source_files).
 
-        temp_dir  -> caller must shutil.rmtree this
-        repo_root -> base for computing module fqns
-        py_files  -> absolute paths of every kept .py file
+        temp_dir     -> caller must shutil.rmtree this
+        repo_root    -> base for computing module fqns
+        source_files -> absolute paths of every kept source file
         """
 
         if not (file.filename or "").lower().endswith(".zip"):
@@ -264,21 +312,38 @@ class ArchiveService:
 
                 # Markers are kept only as a root-detection signal,
                 # so the limits below count real source files.
-                python_count = sum(
-                    1 for m in kept if m.filename.endswith(".py")
+                source_count = sum(
+                    1
+                    for m in kept
+                    if Path(m.filename).suffix.lower() in SUPPORTED_EXTENSIONS
                 )
 
-                if not python_count:
+                if not source_count:
+                    # Say what WAS in there: "no source files found" alone
+                    # gives no clue why a given archive was rejected.
+                    counts = Counter(
+                        Path(m.filename).suffix.lower() or "(no extension)"
+                        for m in members
+                    )
+                    top = ", ".join(
+                        f"{count} {ext}" for ext, count in counts.most_common(4)
+                    )
+                    supported = " ".join(sorted(SUPPORTED_EXTENSIONS))
+
                     raise HTTPException(
                         status_code=400,
-                        detail="No Python files found in the archive",
+                        detail=(
+                            "No supported source files found in the archive. "
+                            f"It contains {top}. Supported extensions: "
+                            f"{supported}"
+                        ),
                     )
 
-                if python_count > self.max_files:
+                if source_count > self.max_files:
                     raise HTTPException(
                         status_code=413,
                         detail=(
-                            f"Archive has {python_count} Python files, "
+                            f"Archive has {source_count} source files, "
                             f"limit is {self.max_files}"
                         ),
                     )
@@ -288,15 +353,19 @@ class ArchiveService:
 
             repo_root = self._find_repo_root(extract_root)
 
-            py_files = sorted(repo_root.rglob("*.py"))
+            source_files = sorted(
+                p
+                for p in repo_root.rglob("*")
+                if p.is_file() and is_supported(p.suffix)
+            )
 
             logger.info(
-                "Extracted %s Python files, repo root %s",
-                len(py_files),
+                "Extracted %s source files, repo root %s",
+                len(source_files),
                 repo_root.name,
             )
 
-            return temp_dir, repo_root, py_files
+            return temp_dir, repo_root, source_files
 
         except Exception:
             shutil.rmtree(temp_dir, ignore_errors=True)

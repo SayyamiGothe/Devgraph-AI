@@ -86,6 +86,12 @@ export interface RagSource {
   chunk_id: number
   document_name: string
   chunk_index: number
+
+  /** Present only when the chunk came from ingested source code. */
+  code_fqn?: string | null
+  file_path?: string | null
+  start_line?: number | null
+  end_line?: number | null
 }
 
 export interface RagAnswer {
@@ -106,6 +112,66 @@ export interface UploadOptions {
   signal?: AbortSignal
   /** 0–1, fires as the file goes up. */
   onProgress?: (fraction: number) => void
+}
+
+// --- Code repositories (app/schemas/code_repository.py) ---------------------
+
+export type RepositoryStatus = 'processing' | 'ready' | 'failed'
+
+export interface CodeRepository {
+  id: number
+  name: string
+  project_id: number
+  status: RepositoryStatus
+  error: string | null
+  /** Python files parsed. */
+  file_count: number
+  /** Files that could not be parsed at all. A high number means a thin graph. */
+  skipped_count: number
+  node_count: number
+  edge_count: number
+  created_at: string
+}
+
+/** One node's immediate neighbourhood in the code graph. */
+export interface GraphNeighbours {
+  fqn: string
+  kind: 'module' | 'class' | 'function' | string
+  file_path: string
+  start_line: number
+  end_line: number
+  signature: string
+  docstring: string
+  parent: string | null
+  callers: string[]
+  callees: string[]
+  bases: string[]
+}
+
+export interface ImpactCaller {
+  fqn: string
+  kind: string
+  file_path: string
+  start_line: number
+  /** Shortest number of CALLS edges from this caller to the target. */
+  hops: number
+}
+
+export interface ImpactResult {
+  fqn: string
+  depth: number
+  caller_count: number
+  callers: ImpactCaller[]
+  /** The backend's reminder that the graph is heuristic, not exhaustive. */
+  note: string
+}
+
+export interface PollOptions {
+  signal?: AbortSignal
+  intervalMs?: number
+  timeoutMs?: number
+  /** Called on every poll, so the UI can show interim counts. */
+  onTick?: (repository: CodeRepository) => void
 }
 
 export const auth = {
@@ -247,6 +313,93 @@ export const rag = {
     ),
 }
 
+export const repositories = {
+  list: (projectId: number, signal?: AbortSignal) =>
+    get<CodeRepository[]>('/repositories', { params: { project_id: projectId }, signal }),
+
+  get: (repositoryId: number, signal?: AbortSignal) =>
+    get<CodeRepository>(`/repositories/${repositoryId}`, { signal }),
+
+  /**
+   * `POST /repositories/upload` is multipart: name + project_id + file (.zip).
+   *
+   * Unlike document upload this returns as soon as the bytes are on disk, with
+   * status "processing". Parsing, graph writes and embedding continue in a
+   * background task — use `waitUntilReady` to follow it.
+   */
+  upload: (
+    input: { name: string; projectId: number; file: File },
+    options: UploadOptions = {},
+  ) => {
+    const form = new FormData()
+    form.append('name', input.name)
+    form.append('project_id', String(input.projectId))
+    form.append('file', input.file)
+
+    return post<CodeRepository>('/repositories/upload', form, {
+      // Only the upload itself happens in this request, but a large zip
+      // still takes a while to travel.
+      timeout: 300_000,
+      signal: options.signal,
+      onUploadProgress: (event) => {
+        if (!options.onProgress) return
+        const total = event.total ?? input.file.size
+        if (total > 0) options.onProgress(Math.min(event.loaded / total, 1))
+      },
+    })
+  },
+
+  /** Polls until status leaves "processing". Resolves on ready AND on failed. */
+  waitUntilReady: async (
+    repositoryId: number,
+    options: PollOptions = {},
+  ): Promise<CodeRepository> => {
+    const { signal, intervalMs = 2_000, timeoutMs = 900_000, onTick } = options
+    const deadline = Date.now() + timeoutMs
+
+    for (;;) {
+      const repository = await get<CodeRepository>(`/repositories/${repositoryId}`, {
+        signal,
+      })
+
+      onTick?.(repository)
+
+      if (repository.status !== 'processing') return repository
+
+      if (Date.now() > deadline) {
+        throw new Error('Timed out waiting for the repository to finish processing.')
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, intervalMs))
+    }
+  },
+
+  /** Node counts and edge counts by type, straight from Neo4j. */
+  stats: (repositoryId: number, signal?: AbortSignal) =>
+    get<{ nodes: Record<string, number>; edges: Record<string, number> }>(
+      `/repositories/${repositoryId}/stats`,
+      { signal },
+    ),
+
+  /** Callers, callees and base classes for one fully-qualified name. */
+  graph: (repositoryId: number, fqn: string, signal?: AbortSignal) =>
+    get<GraphNeighbours>(`/repositories/${repositoryId}/graph`, {
+      params: { fqn },
+      signal,
+    }),
+
+  /** Blast radius: everything that transitively calls `fqn`. */
+  impact: (repositoryId: number, fqn: string, depth = 2, signal?: AbortSignal) =>
+    get<ImpactResult>(`/repositories/${repositoryId}/impact`, {
+      params: { fqn, depth },
+      signal,
+    }),
+
+  /** Drops the Neo4j subgraph, the Document rows, the chunks and the zip. */
+  remove: (repositoryId: number) =>
+    del<{ message: string }>(`/repositories/${repositoryId}`),
+}
+
 export const users = {
   /** ADMIN only. */
   create: (input: { email: string; password: string; role: string }) =>
@@ -266,6 +419,7 @@ export const api = {
   workspaces,
   projects,
   documents,
+  repositories,
   conversations,
   chat,
   rag,

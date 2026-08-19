@@ -60,6 +60,7 @@ class CodeGraphRepository:
                     "docstring": node.docstring or "",
                     "decorators": [str(d) for d in (node.decorators or [])],
                     "is_async": bool(node.is_async),
+                    "language": node.language or "unknown",
                     "repository_id": repository_id,
                 }
             )
@@ -167,6 +168,47 @@ class CodeGraphRepository:
             "callees": record["callees"],
             "bases": record["bases"],
             "parent": record["parent"],
+        }
+
+    def get_impact(self, repository_id: int, fqn: str, depth: int = 2):
+        """
+        Everything that transitively calls `fqn` - the blast radius.
+
+        Variable-length patterns cannot be parameterised, so depth is
+        interpolated. It is clamped here as well as at the router, since
+        an unbounded traversal on a dense graph is a denial of service.
+        """
+        depth = max(1, min(int(depth), 5))
+
+        records = run_query(
+            f"""
+            MATCH (target:CodeNode {{node_key: $key}})
+            MATCH path = (caller:CodeNode)-[:CALLS*1..{depth}]->(target)
+            WITH caller, min(length(path)) AS hops
+            RETURN caller.fqn AS fqn,
+                   caller.kind AS kind,
+                   caller.file_path AS file_path,
+                   caller.start_line AS start_line,
+                   hops
+            ORDER BY hops, fqn
+            """,
+            {"key": self.node_key(repository_id, fqn)},
+        )
+
+        callers = [dict(record) for record in records]
+
+        return {
+            "fqn": fqn,
+            "depth": depth,
+            "caller_count": len(callers),
+            "callers": callers,
+            # The resolver drops ambiguous calls and never sees
+            # decorators or dynamic dispatch, so an empty list means
+            # "none found", not "provably safe to change".
+            "note": (
+                "Graph-derived and incomplete: dynamic dispatch, "
+                "decorators and ambiguous names are not captured."
+            ),
         }
 
     def find_by_name(self, repository_id: int, name: str, limit: int = 10):

@@ -47,37 +47,93 @@ class DocumentService:
                 detail="You do not have access to this project",
             )
 
-        # 3. Generate unique filename
-        extension = Path(file.filename).suffix
+        # 3. Validate the file type BEFORE writing anything.
+        #
+        # This path only understands PDFs (PyPDFLoader is unconditional).
+        # Previously any extension was accepted, the row was committed,
+        # and PyPDFLoader then raised - leaving an orphan Document with
+        # zero chunks plus the file on disk.
+        extension = Path(file.filename or "").suffix.lower()
+
+        if extension == ".zip":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Zip archives are code repositories, not documents. "
+                    "Upload them to POST /repositories/upload instead."
+                ),
+            )
+
+        if extension != ".pdf":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Unsupported file type '{extension or 'unknown'}'. "
+                    "Only .pdf files are supported."
+                ),
+            )
+
         filename = f"{uuid4()}{extension}"
 
         # craete complete file path   uploads/8f7c4a21.pdf
         file_path = UPLOAD_DIR / filename
 
-        # Open/create the file for writing binary data
+        # Stream to disk rather than reading the whole upload into RAM.
         with open(file_path, "wb") as buffer:
 
-            # Copy the uploaded file into it
-            buffer.write(file.file.read())
+            while True:
+                block = file.file.read(1024 * 1024)
+
+                if not block:
+                    break
+
+                buffer.write(block)
+
+        # A wrong extension is cheap to fake, so check the magic bytes.
+        with open(file_path, "rb") as probe:
+            magic = probe.read(5)
+
+        if magic != b"%PDF-":
+            file_path.unlink(missing_ok=True)
+            raise HTTPException(
+                status_code=400,
+                detail="File is not a valid PDF (missing %PDF- header)",
+            )
 
         # 5. Create document record
         document = Document(
             name=name,
             file_path=str(file_path),
             project_id=project_id,
+            source_type="pdf",
         )
 
         document = self.document_repository.create(document)
 
-        #process document
-        chunks,embeddings=self.processing_service.process_document(str(file_path))
+        # 6. Process. If this fails, roll back the row and the file so a
+        # failed upload leaves nothing behind.
+        try:
+            chunks, embeddings = self.processing_service.process_document(
+                str(file_path)
+            )
 
-         # 7. Store chunks + embeddings
-        self.chunk_repository.create_chunks(
-            document_id=document.id,
-            chunks=chunks,
-            embeddings=embeddings,
-        )
+            self.chunk_repository.create_chunks(
+                document_id=document.id,
+                chunks=chunks,
+                embeddings=embeddings,
+            )
+
+        except HTTPException:
+            raise
+
+        except Exception as exc:
+            self.document_repository.delete(document)
+            file_path.unlink(missing_ok=True)
+
+            raise HTTPException(
+                status_code=400,
+                detail=f"Could not read the PDF: {exc}",
+            )
 
         return document
 
@@ -132,6 +188,12 @@ class DocumentService:
             document_id=document_id,
             organisation_id=organisation_id,
         )
+
+        # Remove the file too, or uploads/ grows forever.
+        # Code documents share one zip per repository, so only the
+        # repository delete removes those.
+        if document.source_type != "code" and document.file_path:
+            Path(document.file_path).unlink(missing_ok=True)
 
         self.document_repository.delete(document)
 

@@ -1,5 +1,6 @@
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Depends,
     File,
     Form,
@@ -17,7 +18,10 @@ from app.schemas.code_repository import (
     CodeRepositoryResponse,
     GraphNeighboursResponse,
 )
-from app.services.code_graph_service import CodeGraphService
+from app.services.code_graph_service import (
+    CodeGraphService,
+    run_ingest_task,
+)
 
 router = APIRouter(
     prefix="/repositories",
@@ -36,14 +40,21 @@ router = APIRouter(
     status_code=201,
 )
 def upload_repository(
+    background_tasks: BackgroundTasks,
     name: str = Form(...),
     project_id: int = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # Ingestion is by far the most expensive operation in the app:
-    # it parses, embeds and writes thousands of rows synchronously.
+    """
+    Returns immediately with status="processing".
+
+    Parsing and embedding a real repository takes minutes, which is
+    longer than most browsers and proxies will hold a connection.
+    Poll GET /repositories/{id} until status is "ready" or "failed".
+    """
+    # Ingestion is by far the most expensive operation in the app.
     if not rag_rate_limiter.check(current_user.id):
         raise HTTPException(
             status_code=429,
@@ -60,12 +71,19 @@ def upload_repository(
 
     service = CodeGraphService(db)
 
-    return service.ingest_zip(
+    # Authorizes, drains the upload to disk, and creates the row. All
+    # of it must happen inside the request: the UploadFile stream is
+    # closed as soon as the response is sent.
+    repository = service.prepare_ingest(
         name=name,
         file=file,
         project_id=project_id,
         organisation_id=current_user.organisation_id,
     )
+
+    background_tasks.add_task(run_ingest_task, repository.id)
+
+    return repository
 
 
 # --------------------------------------------------
@@ -180,6 +198,38 @@ def get_graph_neighbours(
         callees=result["callees"],
         bases=result["bases"],
     )
+
+
+@router.get("/{repository_id}/impact")
+def get_impact(
+    repository_id: int,
+    fqn: str,
+    depth: int = 2,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Blast radius: everything that transitively calls `fqn`.
+
+    Answers "if I change this, what breaks?" directly rather than via
+    the LLM. depth is capped to keep the traversal bounded.
+    """
+    service = CodeGraphService(db)
+
+    service.get_repository(
+        repository_id=repository_id,
+        organisation_id=current_user.organisation_id,
+    )
+
+    depth = max(1, min(depth, 5))
+
+    try:
+        return CodeGraphRepository().get_impact(repository_id, fqn, depth)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Graph store unavailable: {exc}",
+        )
 
 
 # --------------------------------------------------

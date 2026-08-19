@@ -14,13 +14,16 @@ interface Upload {
   name: string
   size: number
   progress: number
-  status: 'uploading' | 'indexing' | 'done' | 'failed'
+  status: 'uploading' | 'indexing' | 'graphing' | 'done' | 'failed'
   error?: string
+  /** Set once a code repository finishes, for the summary line. */
+  summary?: string
 }
 
 const STATUS_TONE = {
   uploading: 'cyan',
   indexing: 'violet',
+  graphing: 'violet',
   done: 'mint',
   failed: 'rose',
 } as const
@@ -28,6 +31,15 @@ const STATUS_TONE = {
 function extensionOf(name: string): string {
   const dot = name.lastIndexOf('.')
   return dot > 0 ? name.slice(dot + 1).toUpperCase() : '—'
+}
+
+function isArchive(name: string): boolean {
+  return name.toLowerCase().endsWith('.zip')
+}
+
+/** "repo-main.zip" -> "repo-main", so re-uploading replaces rather than duplicates. */
+function repositoryNameOf(fileName: string): string {
+  return fileName.replace(/\.zip$/i, '')
 }
 
 export function Documents() {
@@ -71,8 +83,8 @@ export function Documents() {
 
     setActionError(null)
 
-    // Sequential: each POST /documents parses, chunks and embeds the file
-    // synchronously, so firing them all at once just starves the backend.
+    // Sequential: each upload parses, chunks and embeds on the server, so
+    // firing them all at once just starves the backend.
     for (const file of Array.from(files)) {
       const id = `${file.name}-${file.size}-${uploads.length}-${Math.random().toString(36).slice(2, 8)}`
 
@@ -82,21 +94,11 @@ export function Documents() {
       ])
 
       try {
-        await api.documents.upload(
-          { name: file.name, projectId, file },
-          {
-            onProgress: (fraction) => {
-              // Once the bytes are up, the backend is still embedding.
-              patchUpload(id, {
-                progress: fraction,
-                status: fraction >= 1 ? 'indexing' : 'uploading',
-              })
-            },
-          },
-        )
-
-        patchUpload(id, { progress: 1, status: 'done' })
-        await reloadDocuments(projectId)
+        if (isArchive(file.name)) {
+          await sendRepository(id, file, projectId)
+        } else {
+          await sendDocument(id, file, projectId)
+        }
       } catch (err) {
         patchUpload(id, {
           status: 'failed',
@@ -104,6 +106,76 @@ export function Documents() {
         })
       }
     }
+  }
+
+  /** PDFs: POST /documents parses and embeds inside the request. */
+  const sendDocument = async (id: string, file: File, projectId: number) => {
+    await api.documents.upload(
+      { name: file.name, projectId, file },
+      {
+        onProgress: (fraction) => {
+          // Once the bytes are up, the backend is still embedding.
+          patchUpload(id, {
+            progress: fraction,
+            status: fraction >= 1 ? 'indexing' : 'uploading',
+          })
+        },
+      },
+    )
+
+    patchUpload(id, { progress: 1, status: 'done' })
+    await reloadDocuments(projectId)
+  }
+
+  /**
+   * Zips: POST /repositories/upload returns as soon as the bytes land, with
+   * status "processing". Parsing, the Neo4j writes and embedding happen in a
+   * background task, so we poll until it settles.
+   */
+  const sendRepository = async (id: string, file: File, projectId: number) => {
+    const created = await api.repositories.upload(
+      { name: repositoryNameOf(file.name), projectId, file },
+      {
+        onProgress: (fraction) => {
+          patchUpload(id, {
+            progress: fraction,
+            status: fraction >= 1 ? 'graphing' : 'uploading',
+          })
+        },
+      },
+    )
+
+    patchUpload(id, { progress: 1, status: 'graphing' })
+
+    const finished = await api.repositories.waitUntilReady(created.id, {
+      onTick: (repository) => {
+        patchUpload(id, {
+          summary: `${repository.file_count} files parsed`,
+        })
+      },
+    })
+
+    if (finished.status === 'failed') {
+      patchUpload(id, {
+        status: 'failed',
+        error: finished.error ?? 'Repository processing failed.',
+      })
+      return
+    }
+
+    const skipped =
+      finished.skipped_count > 0 ? `, ${finished.skipped_count} skipped` : ''
+
+    patchUpload(id, {
+      status: 'done',
+      progress: 1,
+      summary:
+        `${finished.file_count} files${skipped} · ` +
+        `${finished.node_count} nodes · ${finished.edge_count} edges`,
+    })
+
+    // Each source file becomes a Document row, so the table below changes too.
+    await reloadDocuments(projectId)
   }
 
   const remove = async (document: DocumentRecord) => {
@@ -199,9 +271,11 @@ export function Documents() {
               ⇪
             </span>
             <div>
-              <strong>Drop PDFs, DOCX or Markdown here</strong>
+              <strong>Drop a PDF or a repository .zip here</strong>
               <p>
-                Parsed, chunked and embedded on upload into{' '}
+                PDFs are parsed, chunked and embedded. A <code>.zip</code> is treated as a
+                Python repository: its call graph goes to Neo4j and every function is
+                embedded for search. Both land in{' '}
                 <strong>{project?.name ?? 'the selected project'}</strong>.
               </p>
             </div>
@@ -210,6 +284,7 @@ export function Documents() {
               type="file"
               multiple
               hidden
+              accept=".pdf,.zip"
               onChange={(event) => {
                 if (event.target.files?.length) send(event.target.files)
                 event.target.value = ''
@@ -243,6 +318,7 @@ export function Documents() {
                         <strong>{item.name}</strong>
                         <em>
                           {(item.size / 1024).toFixed(0)} KB
+                          {item.summary ? ` · ${item.summary}` : ''}
                           {item.error ? ` · ${item.error}` : ''}
                         </em>
                       </span>
@@ -255,14 +331,16 @@ export function Documents() {
                         className={`queue__fill is-${item.status === 'failed' ? 'failed' : item.status === 'done' ? 'done' : 'extracting'}`}
                         style={
                           {
-                            '--fill': `${(item.status === 'indexing' ? 1 : item.progress) * 100}%`,
+                            '--fill': `${(item.status === 'indexing' || item.status === 'graphing' ? 1 : item.progress) * 100}%`,
                           } as CSSProperties
                         }
                       />
                     </span>
 
                     <span className="queue__pct text-mono">
-                      {item.status === 'indexing' ? '…' : `${Math.round(item.progress * 100)}%`}
+                      {item.status === 'indexing' || item.status === 'graphing'
+                        ? '…'
+                        : `${Math.round(item.progress * 100)}%`}
                     </span>
                   </li>
                 ))}

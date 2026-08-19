@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.refresh_token import RefreshToken
 from app.repositories.refresh_token_repository import RefreshTokenRepository
 from app.repositories.user_repository import UserRepository
@@ -64,7 +65,10 @@ class AuthService:
         refresh_token_record = RefreshToken(
             token=refresh_token,
             user_id=user.id,
-            expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+            # Was hardcoded to 7 days, ignoring the setting that the
+            # refresh token itself is signed with.
+            expires_at=datetime.now(timezone.utc)
+            + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
         )
 
         self.refresh_token_repository.create(refresh_token_record)
